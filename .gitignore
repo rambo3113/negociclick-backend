@@ -11,3 +11,7 @@ public/uploads/
 npm-debug.log*
 .DS_Store
 load-tests/*.output
+
+nombre-del-archivo.ts
+server.err
+*.err
