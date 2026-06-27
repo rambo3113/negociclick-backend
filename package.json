@@ -1,0 +1,50 @@
+{
+  "name": "serviclick-backend",
+  "version": "1.0.0",
+  "description": "Marketplace API",
+  "main": "dist/app.js",
+  "scripts": {
+    "dev": "npx ts-node src/app.ts",
+    "build": "npx tsc",
+    "start": "node dist/app.js",
+    "typecheck": "npx tsc --noEmit",
+    "postinstall": "npx prisma generate",
+    "prisma:migrate": "npx prisma migrate deploy",
+    "prisma:migrate:dev": "npx prisma migrate dev",
+    "prisma:studio": "npx prisma studio",
+    "prisma:generate": "npx prisma generate"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@prisma/client": "^5.22.0",
+    "@types/multer": "^2.1.0",
+    "bcryptjs": "^3.0.3",
+    "cloudinary": "^2.10.0",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.5.2",
+    "helmet": "^8.2.0",
+    "jsonwebtoken": "^9.0.3",
+    "multer": "^2.2.0",
+    "node-cache": "^5.1.2",
+    "node-cron": "^4.5.0",
+    "nodemailer": "^9.0.1",
+    "prisma": "^5.22.0",
+    "stripe": "^22.2.2"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/jsonwebtoken": "^9.0.6",
+    "@types/node": "^25.9.3",
+    "@types/node-cron": "^3.0.11",
+    "@types/nodemailer": "^8.0.1",
+    "autocannon": "^8.0.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^6.0.3"
+  }
+}

@@ -1,0 +1,268 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  password      String
+  name          String
+  phone         String?
+  role          String   @default("CLIENT")   // CLIENT | VENDOR | ADMIN
+  avatar            String?
+  isActive          Boolean  @default(true)
+  emailVerified     Boolean  @default(false)
+  emailVerifiedAt   DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  businesses            Business[]
+  bookings              Booking[]
+  reviews               Review[]
+  payments              Payment[]
+  subscriptions         Subscription[]
+  passwordResetTokens   PasswordResetToken[]
+  emailVerificationTokens EmailVerificationToken[]
+
+  @@index([email])
+  @@index([role])
+  @@map("users")
+}
+
+model EmailVerificationToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([token])
+  @@index([userId])
+  @@map("email_verification_tokens")
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([token])
+  @@index([userId])
+  @@map("password_reset_tokens")
+}
+
+model Business {
+  id           String   @id @default(cuid())
+  name         String
+  description  String?
+  category     String
+  address      String
+  city         String
+  latitude     Float?
+  longitude    Float?
+  phone        String
+  email        String?
+  slogan       String?
+  logo         String?
+  coverImage   String?
+  isActive     Boolean  @default(true)
+  rating       Float?
+  totalReviews Int?     @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  ownerId       String
+  owner         User            @relation(fields: [ownerId], references: [id])
+  services      Service[]
+  bookings      Booking[]
+  reviews       Review[]
+  businessHours       BusinessHours[]
+  photos              BusinessPhoto[]
+  availabilityBlocks  AvailabilityBlock[]
+
+  @@index([ownerId])
+  @@index([category])
+  @@index([city])
+  @@index([isActive])
+  @@index([isActive, category])        // búsqueda pública por categoría
+  @@index([isActive, city])            // búsqueda pública por ciudad
+  @@index([isActive, category, city])  // búsqueda pública combinada
+  @@index([isActive, rating])          // ordenar por rating en el home
+  @@map("businesses")
+}
+
+model BusinessHours {
+  id        String   @id @default(cuid())
+  dayOfWeek Int      // 0=Dom, 1=Lun, ..., 6=Sáb
+  openTime  String   // "09:00"
+  closeTime String   // "18:00"
+  isClosed  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, dayOfWeek])
+  @@map("business_hours")
+}
+
+model BusinessPhoto {
+  id        String   @id @default(cuid())
+  url       String
+  caption   String?
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
+  @@map("business_photos")
+}
+
+model Service {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  price       Decimal  @db.Decimal(10, 2)
+  duration    Int?
+  category    String
+  photo       String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  businessId String
+  business   Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  bookings   Booking[]
+
+  @@index([businessId])
+  @@index([isActive])
+  @@map("services")
+}
+
+model Booking {
+  id           String   @id @default(cuid())
+  date         DateTime
+  status       String   @default("PENDING")  // PENDING | CONFIRMED | COMPLETED | CANCELLED
+  totalAmount  Decimal  @db.Decimal(10, 2)
+  commission   Decimal  @db.Decimal(10, 2)
+  vendorAmount Decimal  @db.Decimal(10, 2)
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  clientId   String
+  client     User     @relation(fields: [clientId], references: [id])
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id])
+  serviceId  String
+  service    Service  @relation(fields: [serviceId], references: [id])
+  payment    Payment?
+  review     Review?
+
+  @@index([clientId])
+  @@index([businessId])
+  @@index([status])
+  @@index([date])
+  @@index([businessId, date])          // disponibilidad y conflictos de horario
+  @@index([businessId, date, status])  // conflicto: status IN [PENDING,CONFIRMED] + fecha
+  @@index([clientId, status])          // historial de reservas del cliente por estado
+  @@map("bookings")
+}
+
+model Payment {
+  id               String   @id @default(cuid())
+  amount           Decimal  @db.Decimal(10, 2)
+  currency         String   @default("PEN")
+  status           String   @default("PENDING")  // PENDING | PAID | FAILED | REFUNDED
+  provider         String
+  providerId       String?
+  commissionAmount Decimal  @db.Decimal(10, 2)
+  vendorAmount     Decimal  @db.Decimal(10, 2)
+  metadata         String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  bookingId String  @unique
+  booking   Booking @relation(fields: [bookingId], references: [id])
+  userId    String
+  user      User    @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([status])
+  @@index([providerId])
+  @@index([userId, status])            // ingresos del vendor filtrados por estado
+  @@index([userId, createdAt])         // historial de pagos del vendor por fecha
+  @@map("payments")
+}
+
+model Subscription {
+  id             String   @id @default(cuid())
+  plan           String   @default("FREE")    // FREE | PRO | PREMIUM
+  status         String   @default("ACTIVE")  // ACTIVE | CANCELLED | EXPIRED
+  commissionRate Decimal  @db.Decimal(5, 4)
+  maxServices    Int?
+  price          Decimal  @db.Decimal(10, 2)
+  culqiChargeId  String?                      // ID del cobro en Culqi para refunds
+  startDate      DateTime @default(now())
+  endDate        DateTime?
+  autoRenew      Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([status])
+  @@index([endDate])
+  @@index([userId, status])            // planGuard: busca ACTIVE por userId (hit frecuente)
+  @@index([status, endDate])           // cron de expiración: ACTIVE + endDate < now
+  @@map("subscriptions")
+}
+
+model AvailabilityBlock {
+  id         String   @id @default(cuid())
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  startDate  DateTime
+  endDate    DateTime
+  reason     String?
+  createdAt  DateTime @default(now())
+
+  @@index([businessId])
+  @@index([startDate])
+  @@index([businessId, startDate, endDate])  // rango de disponibilidad por negocio
+  @@map("availability_blocks")
+}
+
+model Review {
+  id        String   @id @default(cuid())
+  rating    Int
+  comment   String?
+  createdAt DateTime @default(now())
+
+  clientId   String
+  client     User     @relation(fields: [clientId], references: [id])
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id])
+  bookingId  String   @unique
+  booking    Booking  @relation(fields: [bookingId], references: [id])
+
+  @@index([businessId])
+  @@index([clientId])
+  @@map("reviews")
+}

@@ -1,0 +1,12 @@
+[build]
+builder = "nixpacks"
+buildCommand = "npm run build"
+
+[deploy]
+startCommand = "npm run prisma:migrate && node dist/app.js"
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3
+
+[healthcheck]
+path = "/health"
+timeout = 30
