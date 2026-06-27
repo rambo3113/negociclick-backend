@@ -31,6 +31,23 @@ const PORT = process.env.PORT || 3000;
 
 // Forzar HTTPS en producción (Railway/Render inyectan x-forwarded-proto)
 app.set('trust proxy', 1);
+
+// ── Health check ─────────────────────────────────────────────────────────────
+// DEBE ir antes del redirect HTTPS — Railway hace el health check interno via HTTP
+// sin x-forwarded-proto, y el redirect rompería el check devolviendo 301 en vez de 200.
+app.get('/health', async (req, res) => {
+  if (req.query.deep !== '1') {
+    return res.json({ status: 'OK', database: 'unknown' });
+  }
+  try {
+    const { default: prisma } = await import('./lib/prisma');
+    await prisma.$queryRaw`SELECT 1`;
+    res.json({ status: 'OK', database: 'connected' });
+  } catch {
+    res.status(503).json({ status: 'DOWN', database: 'disconnected' });
+  }
+});
+
 if (process.env.NODE_ENV === 'production') {
   app.use((req, res, next) => {
     if (req.headers['x-forwarded-proto'] !== 'https') {
@@ -68,28 +85,10 @@ app.use(express.json({
 }));
 
 // ── Archivos estáticos (fotos subidas) ───────────────────────────────────────
-// Cross-Origin-Resource-Policy: cross-origin permite que el frontend (puerto 3000)
-// cargue imágenes servidas por el backend (puerto 3001)
 app.use('/uploads', (_req, res, next) => {
   res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
   next();
 }, express.static(path.join(process.cwd(), 'public', 'uploads')));
-
-// ── Health check ─────────────────────────────────────────────────────────────
-// Responde inmediato sin tocar la BD — bajo carga extrema evita competir por el pool.
-// DB se verifica solo si se pasa ?deep=1 (para monitoreo real, no load balancer).
-app.get('/health', async (req, res) => {
-  if (req.query.deep !== '1') {
-    return res.json({ status: 'OK', database: 'unknown' });
-  }
-  try {
-    const { default: prisma } = await import('./lib/prisma');
-    await prisma.$queryRaw`SELECT 1`;
-    res.json({ status: 'OK', database: 'connected' });
-  } catch {
-    res.status(503).json({ status: 'DOWN', database: 'disconnected' });
-  }
-});
 
 // ── Rutas ─────────────────────────────────────────────────────────────────────
 app.use('/api/auth', authRoutes);
