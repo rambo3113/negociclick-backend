@@ -1,8 +1,9 @@
 import jwt from 'jsonwebtoken';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'FALLBACK_TEMPORAL_SOLO_PARA_DEBUG';
-if (!process.env.JWT_SECRET) {
-  console.warn('[WARN] JWT_SECRET no encontrado. Env keys:', Object.keys(process.env).filter(k => !k.includes('npm') && !k.includes('NODE')).join(', '));
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  console.error('[FATAL] JWT_SECRET no está definido. El servidor no puede arrancar de forma segura.');
+  process.exit(1);
 }
 
 export const generateToken = (payload: { userId: string; email: string; role: string }) => {
