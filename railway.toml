@@ -1,9 +1,9 @@
 [build]
 builder = "nixpacks"
-buildCommand = "npm run build"
+buildCommand = "npm run build && npx prisma generate"
 
 [deploy]
-startCommand = "npm run prisma:migrate && node dist/app.js"
+startCommand = "node dist/app.js"
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 3
 
