@@ -104,7 +104,7 @@ app.use('/api/payments', paymentRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/reclamos', reclamoRoutes);
 
-const server = app.listen(PORT, () => {
+const server = app.listen(Number(PORT), '0.0.0.0', () => {
   console.log(`🚀 Servidor en http://localhost:${PORT}`);
   console.log(`📊 Health check: http://localhost:${PORT}/health`);
   console.log(`🔒 CORS permitido: ${allowedOrigins.join(', ')}`);
