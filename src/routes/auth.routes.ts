@@ -4,6 +4,7 @@ import { authenticate } from '../middleware/auth.middleware';
 import { upload } from '../lib/upload';
 import { uploadToCloudinary, deleteFromCloudinary, extractPublicId } from '../lib/cloudinary';
 import prisma from '../lib/prisma';
+import { forgotPasswordLimiter } from '../middleware/rateLimit.middleware';
 
 const router = Router();
 
@@ -33,7 +34,7 @@ async function uploadAvatar(req: Request, res: Response) {
 
 router.post('/register', register);
 router.post('/login', login);
-router.post('/forgot-password', forgotPassword);
+router.post('/forgot-password', forgotPasswordLimiter, forgotPassword);
 router.post('/reset-password', resetPassword);
 router.get('/profile', authenticate, getProfile);
 router.put('/profile', authenticate, updateProfile);
