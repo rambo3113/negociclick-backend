@@ -77,6 +77,8 @@ model Business {
   logo         String?
   coverImage   String?
   isActive     Boolean  @default(true)
+  featured     Boolean  @default(false)
+  featuredUntil DateTime?
   rating       Float?
   totalReviews Int?     @default(0)
   createdAt    DateTime @default(now())
@@ -99,6 +101,7 @@ model Business {
   @@index([isActive, city])            // búsqueda pública por ciudad
   @@index([isActive, category, city])  // búsqueda pública combinada
   @@index([isActive, rating])          // ordenar por rating en el home
+  @@index([featured, featuredUntil])   // negocios destacados vigentes
   @@map("businesses")
 }
 

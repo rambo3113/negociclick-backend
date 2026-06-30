@@ -20,6 +20,7 @@ import { startCleanupTokens } from './jobs/cleanupTokens';
 import { startExpireSubscriptions } from './jobs/expireSubscriptions';
 import reclamoRoutes from './routes/reclamo.routes';
 import chatRoutes from './routes/chat.routes';
+import featuredRoutes from './routes/featured.routes';
 import { authLimiter, paymentLimiter, generalLimiter } from './middleware/rateLimit.middleware';
 import availabilityRoutes from './routes/availability.routes';
 
@@ -105,6 +106,7 @@ app.use('/api/payments', paymentRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/reclamos', reclamoRoutes);
 app.use('/api/chat', chatRoutes);
+app.use('/api/businesses/:id/featured', featuredRoutes);
 
 const server = app.listen(Number(PORT), '0.0.0.0', () => {
   console.log(`🚀 Servidor en http://localhost:${PORT}`);

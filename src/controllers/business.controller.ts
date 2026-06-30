@@ -145,7 +145,7 @@ export const getAllBusinesses = async (req: Request, res: Response) => {
           services: { where: { isActive: true } },
           reviews:  { select: { rating: true } },
         },
-        orderBy: { createdAt: 'desc' },
+        orderBy: [{ featured: 'desc' }, { createdAt: 'desc' }],
         skip,
         take: limitNum,
       }),
@@ -158,7 +158,9 @@ export const getAllBusinesses = async (req: Request, res: Response) => {
         ? Number((b.reviews.reduce((s, r) => s + r.rating, 0) / totalReviews).toFixed(1))
         : null;
       const minSvcPrice = b.services.length > 0 ? Math.min(...b.services.map(s => Number(s.price))) : null;
-      return { ...b, averageRating, totalReviews, minPrice: minSvcPrice };
+      const now = new Date();
+      const isFeatured = b.featured && !!b.featuredUntil && b.featuredUntil > now;
+      return { ...b, averageRating, totalReviews, minPrice: minSvcPrice, featured: isFeatured };
     });
 
     const payload = {
