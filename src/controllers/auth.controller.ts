@@ -3,7 +3,7 @@ import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import prisma from '../lib/prisma';
 import { generateAccessToken, generateRefreshToken } from '../utils/jwt.util';
-import { sendPasswordResetEmail, sendEmailVerification } from '../lib/email';
+import { sendPasswordResetEmail, sendEmailVerification, sendWelcomeVendor, sendWelcomeClient } from '../lib/email';
 import { audit } from '../lib/audit';
 
 const validatePassword = (password: string): string | null => {
@@ -58,6 +58,12 @@ export const register = async (req: Request, res: Response) => {
       data: { token: refreshToken, userId: user.id, expiresAt: new Date(Date.now() + 7 * 86_400_000) },
     });
     audit('REGISTER', { userId: user.id, meta: { email: user.email, role: user.role }, req });
+    // Email de bienvenida según rol (fire-and-forget)
+    if (safeRole === 'VENDOR') {
+      sendWelcomeVendor({ email: user.email, name: user.name }).catch(() => {});
+    } else {
+      sendWelcomeClient({ email: user.email, name: user.name }).catch(() => {});
+    }
 
     res.status(201).json({
       success: true,

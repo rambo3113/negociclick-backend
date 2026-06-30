@@ -440,6 +440,108 @@ export async function sendFeaturedExpired(opts: {
   `));
 }
 
+// ── 16. Bienvenida vendor (onboarding) ──────────────────────────────────────
+export async function sendWelcomeVendor(opts: {
+  email: string;
+  name: string;
+}) {
+  const appUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+  await send(opts.email, '¡Bienvenido a NegociClick! Configura tu negocio en 3 pasos', base(`
+    <div style="text-align:center;margin-bottom:24px;">
+      <div style="display:inline-block;background:linear-gradient(135deg,#ede9fe,#fce7f3);border-radius:50%;width:72px;height:72px;line-height:72px;font-size:36px;">🚀</div>
+    </div>
+    <h2 style="margin:0 0 8px;font-size:22px;color:#1e293b;text-align:center;">¡Hola, ${opts.name}!</h2>
+    <p style="margin:0 0 24px;color:#64748b;font-size:15px;text-align:center;">
+      Tu cuenta de negocio en <strong>NegociClick</strong> fue creada exitosamente.<br/>
+      Sigue estos pasos para empezar a recibir reservas:
+    </p>
+
+    <div style="background:#f8fafc;border-radius:14px;padding:20px 24px;margin-bottom:20px;">
+      <div style="display:flex;align-items:flex-start;gap:14px;margin-bottom:16px;">
+        <div style="min-width:36px;height:36px;background:linear-gradient(135deg,#6366f1,#a855f7);border-radius:50%;color:#fff;font-weight:700;font-size:16px;display:flex;align-items:center;justify-content:center;text-align:center;line-height:36px;">1</div>
+        <div>
+          <p style="margin:0 0 4px;font-size:14px;font-weight:700;color:#1e293b;">Crea tu negocio</p>
+          <p style="margin:0;font-size:13px;color:#64748b;">Ve a tu dashboard → "Negocios" → "Agregar negocio". Completa nombre, categoría, dirección y teléfono.</p>
+        </div>
+      </div>
+      <div style="display:flex;align-items:flex-start;gap:14px;margin-bottom:16px;">
+        <div style="min-width:36px;height:36px;background:linear-gradient(135deg,#6366f1,#a855f7);border-radius:50%;color:#fff;font-weight:700;font-size:16px;display:flex;align-items:center;justify-content:center;text-align:center;line-height:36px;">2</div>
+        <div>
+          <p style="margin:0 0 4px;font-size:14px;font-weight:700;color:#1e293b;">Agrega tus servicios y precios</p>
+          <p style="margin:0;font-size:13px;color:#64748b;">En el tab "Servicios" agrega lo que ofreces con precio y duración. Usa las plantillas predefinidas para ahorrar tiempo.</p>
+        </div>
+      </div>
+      <div style="display:flex;align-items:flex-start;gap:14px;">
+        <div style="min-width:36px;height:36px;background:linear-gradient(135deg,#6366f1,#a855f7);border-radius:50%;color:#fff;font-weight:700;font-size:16px;display:flex;align-items:center;justify-content:center;text-align:center;line-height:36px;">3</div>
+        <div>
+          <p style="margin:0 0 4px;font-size:14px;font-weight:700;color:#1e293b;">Sube tu foto de portada</p>
+          <p style="margin:0;font-size:13px;color:#64748b;">Los negocios con foto reciben <strong>3× más visitas</strong>. En el tab "Perfil" puedes subir tu imagen de portada y fotos de tu local.</p>
+        </div>
+      </div>
+    </div>
+
+    <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:14px 18px;margin-bottom:24px;">
+      <p style="margin:0;font-size:13px;color:#92400e;">
+        ⚡ <strong>Tip:</strong> Los negocios que completan su perfil en las primeras 24h consiguen sus primeras reservas más rápido.
+      </p>
+    </div>
+
+    <div style="text-align:center;margin:24px 0;">
+      <a href="${appUrl}/dashboard"
+         style="display:inline-block;background:linear-gradient(135deg,#6366f1,#a855f7);color:#ffffff;font-weight:700;font-size:15px;padding:14px 36px;border-radius:12px;text-decoration:none;">
+        Ir a mi dashboard →
+      </a>
+    </div>
+    <p style="margin:0;font-size:12px;color:#94a3b8;text-align:center;">
+      ¿Tienes dudas? Escríbenos por WhatsApp: <a href="https://wa.me/51983081196" style="color:#6366f1;">+51 983 081 196</a>
+    </p>
+  `));
+}
+
+// ── 17. Bienvenida cliente ───────────────────────────────────────────────────
+export async function sendWelcomeClient(opts: {
+  email: string;
+  name: string;
+}) {
+  const appUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+  await send(opts.email, '¡Bienvenido a NegociClick! Encuentra los mejores servicios en Lima', base(`
+    <div style="text-align:center;margin-bottom:24px;">
+      <div style="display:inline-block;background:linear-gradient(135deg,#dcfce7,#dbeafe);border-radius:50%;width:72px;height:72px;line-height:72px;font-size:36px;">✨</div>
+    </div>
+    <h2 style="margin:0 0 8px;font-size:22px;color:#1e293b;text-align:center;">¡Hola, ${opts.name}!</h2>
+    <p style="margin:0 0 24px;color:#64748b;font-size:15px;text-align:center;">
+      Bienvenido a <strong>NegociClick</strong>, el marketplace de servicios en Lima.<br/>
+      Reserva barberos, dentistas, spas, nutricionistas y mucho más en segundos.
+    </p>
+
+    <div style="display:grid;gap:12px;margin-bottom:24px;">
+      ${[
+        { emoji: '🔍', title: 'Explora negocios', desc: 'Busca por categoría, ciudad o nombre. Filtra por precio y rating.' },
+        { emoji: '📅', title: 'Reserva en segundos', desc: 'Elige el servicio, fecha y hora. Recibe confirmación inmediata.' },
+        { emoji: '⭐', title: 'Deja tu reseña', desc: 'Tu opinión ayuda a otros y premia a los mejores negocios.' },
+      ].map(({ emoji, title, desc }) => `
+        <div style="background:#f8fafc;border-radius:12px;padding:14px 16px;display:flex;gap:12px;align-items:flex-start;">
+          <span style="font-size:22px;">${emoji}</span>
+          <div>
+            <p style="margin:0 0 2px;font-size:14px;font-weight:700;color:#1e293b;">${title}</p>
+            <p style="margin:0;font-size:13px;color:#64748b;">${desc}</p>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+
+    <div style="text-align:center;margin:24px 0;">
+      <a href="${appUrl}"
+         style="display:inline-block;background:linear-gradient(135deg,#6366f1,#a855f7);color:#ffffff;font-weight:700;font-size:15px;padding:14px 36px;border-radius:12px;text-decoration:none;">
+        Explorar servicios →
+      </a>
+    </div>
+    <p style="margin:0;font-size:12px;color:#94a3b8;text-align:center;">
+      ¿Necesitas ayuda? <a href="https://wa.me/51983081196" style="color:#6366f1;">WhatsApp +51 983 081 196</a>
+    </p>
+  `));
+}
+
 // ── 13. Reserva reagendada → vendor ─────────────────────────────────────────
 export async function sendBookingRescheduledToVendor(opts: {
   vendorEmail: string;
