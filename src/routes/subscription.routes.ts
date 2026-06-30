@@ -11,6 +11,8 @@ import {
 } from '../controllers/subscription.controller';
 import { authenticate } from '../middleware/auth.middleware';
 import { requireAdmin } from '../middleware/admin.middleware';
+import { validate } from '../middleware/validate.middleware';
+import { subscriptionSchema } from '../lib/schemas';
 
 const router = Router();
 
@@ -22,7 +24,7 @@ router.use(authenticate);
 router.get('/my', getMySubscription);
 router.get('/history', getSubscriptionHistory);
 router.post('/', subscribe);
-router.post('/pay', subscribePaid);
+router.post('/pay', validate(subscriptionSchema), subscribePaid);
 router.delete('/cancel', cancelSubscription);
 
 // Solo admin

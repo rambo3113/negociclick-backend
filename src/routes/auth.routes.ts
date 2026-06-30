@@ -5,6 +5,8 @@ import { upload } from '../lib/upload';
 import { uploadToCloudinary, deleteFromCloudinary, extractPublicId } from '../lib/cloudinary';
 import prisma from '../lib/prisma';
 import { forgotPasswordLimiter } from '../middleware/rateLimit.middleware';
+import { validate } from '../middleware/validate.middleware';
+import { registerSchema, loginSchema, forgotPasswordSchema, resetPasswordSchema } from '../lib/schemas';
 
 const router = Router();
 
@@ -32,10 +34,10 @@ async function uploadAvatar(req: Request, res: Response) {
   }
 }
 
-router.post('/register', register);
-router.post('/login', login);
-router.post('/forgot-password', forgotPasswordLimiter, forgotPassword);
-router.post('/reset-password', resetPassword);
+router.post('/register',       validate(registerSchema), register);
+router.post('/login',          validate(loginSchema), login);
+router.post('/forgot-password', forgotPasswordLimiter, validate(forgotPasswordSchema), forgotPassword);
+router.post('/reset-password', validate(resetPasswordSchema), resetPassword);
 router.get('/profile', authenticate, getProfile);
 router.put('/profile', authenticate, updateProfile);
 router.put('/password', authenticate, changePassword);

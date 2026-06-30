@@ -12,6 +12,8 @@ import {
   getAvailableSlots,
 } from '../controllers/booking.controller';
 import { authenticate } from '../middleware/auth.middleware';
+import { validate } from '../middleware/validate.middleware';
+import { createBookingSchema } from '../lib/schemas';
 
 const router = Router();
 
@@ -21,7 +23,7 @@ router.get('/slots/:serviceId', getAvailableSlots);
 // Todas las demás requieren autenticación
 router.use(authenticate);
 
-router.post('/', createBooking);
+router.post('/', validate(createBookingSchema), createBooking);
 router.get('/my', getMyBookings);
 router.get('/business/:businessId', getBookingsByBusiness);
 router.get('/business/:businessId/earnings', getEarnings);
