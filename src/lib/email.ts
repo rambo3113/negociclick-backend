@@ -11,14 +11,14 @@ function base(content: string) {
   <body style="margin:0;padding:0;background:#f8fafc;font-family:Arial,Helvetica,sans-serif;">
     <div style="max-width:560px;margin:32px auto;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
       <!-- Header -->
-      <div style="background:linear-gradient(135deg,#6366f1,#a855f7);padding:28px 32px;text-align:center;">
+      <div style="background:linear-gradient(135deg,#6366f1,#a855f7);padding:32px;text-align:center;">
         <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 auto;">
           <tr>
             <td style="vertical-align:middle;padding-right:10px;">
-              <img src="https://www.negociclick.com/icon.svg" alt="NegociClick" width="40" height="40" style="display:block;border-radius:10px;background:#ffffff;" />
+              <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiIgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIj48ZGVmcz48bGluZWFyR3JhZGllbnQgaWQ9ImJnIiB4MT0iMCUiIHkxPSIwJSIgeDI9IjEwMCUiIHkyPSIxMDAlIj48c3RvcCBvZmZzZXQ9IjAlIiBzdHlsZT0ic3RvcC1jb2xvcjojNjM2NmYxIi8+PHN0b3Agb2Zmc2V0PSIxMDAlIiBzdHlsZT0ic3RvcC1jb2xvcjojOTMzM2VhIi8+PC9saW5lYXJHcmFkaWVudD48L2RlZnM+PHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiByeD0iNyIgZmlsbD0idXJsKCNiZykiLz48cG9seWdvbiBwb2ludHM9IjE4LDQgMTAsMTggMTUsMTggMTQsMjggMjIsMTQgMTcsMTQiIGZpbGw9IndoaXRlIi8+PC9zdmc+" alt="NegociClick" width="40" height="40" style="display:block;" />
             </td>
             <td style="vertical-align:middle;">
-              <span style="font-size:26px;font-weight:900;color:#ffffff;font-family:Arial,sans-serif;letter-spacing:-0.5px;">Negoci</span><span style="font-size:26px;font-weight:900;color:#c7d2fe;font-family:Arial,sans-serif;letter-spacing:-0.5px;">Click</span>
+              <span style="font-size:26px;font-weight:900;color:#ffffff;font-family:Arial,Helvetica,sans-serif;letter-spacing:-0.5px;">Negoci</span><span style="font-size:26px;font-weight:900;color:#c7d2fe;font-family:Arial,Helvetica,sans-serif;letter-spacing:-0.5px;">Click</span>
             </td>
           </tr>
         </table>
