@@ -3,10 +3,10 @@ import { Request } from 'express';
 
 const skipInTest = (_req: Request) => process.env.NODE_ENV === 'test';
 
-// Login y registro: 10 intentos por 15 min por IP
+// Login y registro: 30 intentos por 15 min por IP
 export const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 10,
+  max: 30,
   skip: skipInTest,
   standardHeaders: true,
   legacyHeaders: false,
