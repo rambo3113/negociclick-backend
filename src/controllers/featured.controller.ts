@@ -24,9 +24,9 @@ async function culqiCharge(token: string, amount: number, email: string, descrip
 
 // Precios destacado (en soles)
 export const FEATURED_PRICING: Record<string, { days: number; price: number; label: string }> = {
-  '7days':  { days: 7,  price: 19.90, label: '7 días'  },
-  '15days': { days: 15, price: 34.90, label: '15 días' },
-  '30days': { days: 30, price: 59.90, label: '30 días' },
+  '7days':  { days: 7,  price: 9.90,  label: '7 días'  },
+  '15days': { days: 15, price: 19.90, label: '15 días' },
+  '30days': { days: 30, price: 34.90, label: '30 días' },
 };
 
 // GET /api/businesses/:id/featured/pricing
