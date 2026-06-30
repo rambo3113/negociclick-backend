@@ -91,3 +91,60 @@ export const getAllUsers = async (req: Request, res: Response) => {
     res.status(500).json({ error: 'Error al listar usuarios' });
   }
 };
+
+export const getAllBusinessesAdmin = async (req: Request, res: Response) => {
+  try {
+    const businesses = await prisma.business.findMany({
+      orderBy: { createdAt: 'desc' },
+      include: {
+        owner: { select: { id: true, name: true, email: true } },
+        _count: { select: { bookings: true, reviews: true, services: true } },
+      },
+    });
+    res.json({ success: true, count: businesses.length, businesses });
+  } catch {
+    res.status(500).json({ error: 'Error al listar negocios' });
+  }
+};
+
+export const getFeaturedPaymentsAdmin = async (_req: Request, res: Response) => {
+  try {
+    const payments = await prisma.featuredPayment.findMany({
+      orderBy: { createdAt: 'desc' },
+      include: {
+        business: { select: { name: true } },
+        user:     { select: { name: true, email: true } },
+      },
+    });
+    const total = payments.reduce((s, p) => s + Number(p.amount), 0);
+    res.json({ success: true, count: payments.length, total: parseFloat(total.toFixed(2)), payments });
+  } catch {
+    res.status(500).json({ error: 'Error al listar pagos destacados' });
+  }
+};
+
+export const updateUserRole = async (req: Request, res: Response) => {
+  try {
+    const id   = req.params.id as string;
+    const { role } = req.body as { role: string };
+    if (!['CLIENT', 'VENDOR', 'ADMIN'].includes(role)) {
+      return res.status(400).json({ error: 'Rol inválido' });
+    }
+    const user = await prisma.user.update({ where: { id }, data: { role } });
+    res.json({ success: true, user: { id: user.id, name: user.name, role: user.role } });
+  } catch {
+    res.status(500).json({ error: 'Error al actualizar rol' });
+  }
+};
+
+export const toggleBusinessActive = async (req: Request, res: Response) => {
+  try {
+    const id  = req.params.id as string;
+    const biz = await prisma.business.findUnique({ where: { id }, select: { isActive: true } });
+    if (!biz) return res.status(404).json({ error: 'Negocio no encontrado' });
+    const updated = await prisma.business.update({ where: { id }, data: { isActive: !biz.isActive } });
+    res.json({ success: true, isActive: updated.isActive });
+  } catch {
+    res.status(500).json({ error: 'Error al actualizar negocio' });
+  }
+};
