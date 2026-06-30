@@ -1,15 +1,10 @@
 import { Request, Response } from 'express';
 import prisma from '../lib/prisma';
-import nodemailer from 'nodemailer';
+import { Resend } from 'resend';
 
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || 'smtp.gmail.com',
-  port: parseInt(process.env.SMTP_PORT || '587'),
-  secure: false,
-  auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
-});
-
-const FROM = `"NegociClick" <${process.env.SMTP_USER}>`;
+const resend = new Resend(process.env.RESEND_API_KEY);
+const FROM = 'NegociClick <noreply@negociclick.com>';
+const ADMIN_EMAIL = 'noreply@negociclick.com';
 
 export const createReclamo = async (req: Request, res: Response) => {
   try {
@@ -42,10 +37,10 @@ export const createReclamo = async (req: Request, res: Response) => {
     });
 
     // Notificar al equipo NegociClick
-    if (process.env.SMTP_USER) {
-      await transporter.sendMail({
+    if (process.env.RESEND_API_KEY) {
+      await resend.emails.send({
         from: FROM,
-        to: process.env.SMTP_USER,
+        to: ADMIN_EMAIL,
         subject: `[${tipoReclamo}] ${numero} — ${nombre} ${apellido}`,
         html: `
           <h2>Nuevo ${tipoReclamo.toLowerCase()} recibido</h2>
@@ -64,7 +59,7 @@ export const createReclamo = async (req: Request, res: Response) => {
       }).catch(() => {});
 
       // Confirmación al consumidor
-      await transporter.sendMail({
+      await resend.emails.send({
         from: FROM,
         to: email,
         subject: `Recibimos tu ${tipoReclamo.toLowerCase()} — ${numero}`,
@@ -83,7 +78,7 @@ export const createReclamo = async (req: Request, res: Response) => {
                   <p style="margin:0;font-size:22px;font-weight:900;color:#6366f1;">${numero}</p>
                 </div>
                 <p style="color:#64748b;font-size:14px;">Plazo de respuesta: <strong>hasta 30 días hábiles</strong> según la normativa del INDECOPI.</p>
-                <p style="color:#64748b;font-size:13px;margin-top:16px;">Si tienes alguna consulta adicional, escríbenos a <a href="mailto:negociclick2026@gmail.com" style="color:#6366f1;">negociclick2026@gmail.com</a></p>
+                <p style="color:#64748b;font-size:13px;margin-top:16px;">Si tienes alguna consulta adicional, escríbenos a <a href="mailto:noreply@negociclick.com" style="color:#6366f1;">noreply@negociclick.com</a></p>
               </div>
               <div style="background:#f1f5f9;padding:16px 32px;text-align:center;">
                 <p style="margin:0;font-size:12px;color:#94a3b8;">© 2026 NegociClick · Lima, Perú</p>

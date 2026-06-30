@@ -32,8 +32,8 @@
     "multer": "^2.2.0",
     "node-cache": "^5.1.2",
     "node-cron": "^4.5.0",
-    "nodemailer": "^9.0.1",
     "prisma": "^5.22.0",
+    "resend": "^6.16.0",
     "stripe": "^22.2.2"
   },
   "devDependencies": {
@@ -43,7 +43,6 @@
     "@types/jsonwebtoken": "^9.0.6",
     "@types/node": "^25.9.3",
     "@types/node-cron": "^3.0.11",
-    "@types/nodemailer": "^8.0.1",
     "autocannon": "^8.0.0",
     "ts-node": "^10.9.2",
     "typescript": "^6.0.3"
