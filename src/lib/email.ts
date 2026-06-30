@@ -12,9 +12,12 @@ function base(content: string) {
     <div style="max-width:560px;margin:32px auto;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
       <!-- Header -->
       <div style="background-color:#6366f1;background:linear-gradient(135deg,#6366f1,#a855f7);padding:28px 32px;text-align:center;">
-        <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:900;letter-spacing:-0.5px;">
-          ⚡ Negoci<span style="color:#c7d2fe;">Click</span>
-        </h1>
+        <div style="display:inline-flex;align-items:center;gap:10px;">
+          <div style="background:#ffffff;border-radius:12px;width:40px;height:40px;display:inline-flex;align-items:center;justify-content:center;font-size:22px;line-height:40px;">⚡</div>
+          <h1 style="margin:0;font-size:26px;font-weight:900;letter-spacing:-0.5px;display:inline;">
+            <span style="color:#ffffff;">Negoci</span><span style="color:#c7d2fe;">Click</span>
+          </h1>
+        </div>
       </div>
       <!-- Body -->
       <div style="padding:32px;">
