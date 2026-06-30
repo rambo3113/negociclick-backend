@@ -26,6 +26,7 @@ model User {
   reviews               Review[]
   payments              Payment[]
   subscriptions         Subscription[]
+  featuredPayments      FeaturedPayment[]
   passwordResetTokens   PasswordResetToken[]
   emailVerificationTokens EmailVerificationToken[]
 
@@ -92,6 +93,7 @@ model Business {
   businessHours       BusinessHours[]
   photos              BusinessPhoto[]
   availabilityBlocks  AvailabilityBlock[]
+  featuredPayments    FeaturedPayment[]
 
   @@index([ownerId])
   @@index([category])
@@ -103,6 +105,27 @@ model Business {
   @@index([isActive, rating])          // ordenar por rating en el home
   @@index([featured, featuredUntil])   // negocios destacados vigentes
   @@map("businesses")
+
+}
+
+model FeaturedPayment {
+  id            String   @id @default(cuid())
+  period        String                        // "7days" | "15days" | "30days"
+  days          Int
+  amount        Decimal  @db.Decimal(10, 2)
+  culqiChargeId String
+  featuredUntil DateTime
+  createdAt     DateTime @default(now())
+
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id])
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+
+  @@index([businessId])
+  @@index([userId])
+  @@index([createdAt])
+  @@map("featured_payments")
 }
 
 model BusinessHours {

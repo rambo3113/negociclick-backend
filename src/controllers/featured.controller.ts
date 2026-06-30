@@ -82,6 +82,18 @@ export const purchaseFeatured = async (req: Request, res: Response) => {
       data: { featured: true, featuredUntil },
     });
 
+    await prisma.featuredPayment.create({
+      data: {
+        businessId,
+        userId,
+        period,
+        days:          pricing.days,
+        amount:        pricing.price,
+        culqiChargeId: charge.id,
+        featuredUntil,
+      },
+    });
+
     res.json({
       success: true,
       message: `¡Tu negocio aparecerá como Destacado por ${pricing.label}!`,
