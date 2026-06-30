@@ -14,10 +14,10 @@ function base(content: string) {
       <div style="background:linear-gradient(135deg,#6366f1,#a855f7);padding:32px;text-align:center;">
         <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 auto;">
           <tr>
-            <td style="vertical-align:middle;padding-right:10px;">
-              <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiIgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIj48ZGVmcz48bGluZWFyR3JhZGllbnQgaWQ9ImJnIiB4MT0iMCUiIHkxPSIwJSIgeDI9IjEwMCUiIHkyPSIxMDAlIj48c3RvcCBvZmZzZXQ9IjAlIiBzdHlsZT0ic3RvcC1jb2xvcjojNjM2NmYxIi8+PHN0b3Agb2Zmc2V0PSIxMDAlIiBzdHlsZT0ic3RvcC1jb2xvcjojOTMzM2VhIi8+PC9saW5lYXJHcmFkaWVudD48L2RlZnM+PHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiByeD0iNyIgZmlsbD0idXJsKCNiZykiLz48cG9seWdvbiBwb2ludHM9IjE4LDQgMTAsMTggMTUsMTggMTQsMjggMjIsMTQgMTcsMTQiIGZpbGw9IndoaXRlIi8+PC9zdmc+" alt="NegociClick" width="40" height="40" style="display:block;" />
+            <td style="background:#ffffff;border-radius:10px;width:40px;height:40px;text-align:center;vertical-align:middle;padding:0 8px;">
+              <span style="font-size:22px;font-weight:900;color:#6366f1;font-family:Arial,Helvetica,sans-serif;line-height:40px;">N</span>
             </td>
-            <td style="vertical-align:middle;">
+            <td style="padding-left:12px;vertical-align:middle;">
               <span style="font-size:26px;font-weight:900;color:#ffffff;font-family:Arial,Helvetica,sans-serif;letter-spacing:-0.5px;">Negoci</span><span style="font-size:26px;font-weight:900;color:#c7d2fe;font-family:Arial,Helvetica,sans-serif;letter-spacing:-0.5px;">Click</span>
             </td>
           </tr>
