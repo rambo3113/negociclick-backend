@@ -95,10 +95,11 @@ app.use('/uploads', (_req, res, next) => {
 
 // ── Rutas ─────────────────────────────────────────────────────────────────────
 app.use('/api/auth', authRoutes);
-app.use('/api/businesses', businessRoutes);
+app.use('/api/businesses/:id/featured', featuredRoutes);
 app.use('/api/businesses/:id/hours', hoursRoutes);
 app.use('/api/businesses/:id/photos', photosRoutes);
 app.use('/api/businesses/:id/availability', availabilityRoutes);
+app.use('/api/businesses', businessRoutes);
 app.use('/api/services', serviceRoutes);
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/reviews', reviewRoutes);
@@ -107,7 +108,6 @@ app.use('/api/payments', paymentRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/reclamos', reclamoRoutes);
 app.use('/api/chat', chatRoutes);
-app.use('/api/businesses/:id/featured', featuredRoutes);
 
 const server = app.listen(Number(PORT), '0.0.0.0', () => {
   console.log(`🚀 Servidor en http://localhost:${PORT}`);
