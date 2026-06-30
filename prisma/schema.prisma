@@ -322,3 +322,22 @@ model Review {
   @@index([clientId])
   @@map("reviews")
 }
+
+model Banner {
+  id          String   @id @default(cuid())
+  title       String
+  imageUrl    String
+  linkUrl     String?
+  category    String   @default("ALL")   // "ALL" o categoría específica
+  position    String   @default("home")  // "home" | "category"
+  isActive    Boolean  @default(true)
+  startsAt    DateTime @default(now())
+  endsAt      DateTime?
+  clickCount  Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([isActive, category])
+  @@index([isActive, position])
+  @@map("banners")
+}
