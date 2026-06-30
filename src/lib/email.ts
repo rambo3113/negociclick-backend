@@ -11,13 +11,17 @@ function base(content: string) {
   <body style="margin:0;padding:0;background:#f8fafc;font-family:Arial,Helvetica,sans-serif;">
     <div style="max-width:560px;margin:32px auto;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
       <!-- Header -->
-      <div style="background-color:#6366f1;background:linear-gradient(135deg,#6366f1,#a855f7);padding:28px 32px;text-align:center;">
-        <div style="display:inline-flex;align-items:center;gap:10px;">
-          <div style="background:#ffffff;border-radius:12px;width:40px;height:40px;display:inline-flex;align-items:center;justify-content:center;font-size:22px;line-height:40px;">⚡</div>
-          <h1 style="margin:0;font-size:26px;font-weight:900;letter-spacing:-0.5px;display:inline;">
-            <span style="color:#ffffff;">Negoci</span><span style="color:#c7d2fe;">Click</span>
-          </h1>
-        </div>
+      <div style="background:linear-gradient(135deg,#6366f1,#a855f7);padding:28px 32px;text-align:center;">
+        <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 auto;">
+          <tr>
+            <td style="vertical-align:middle;padding-right:10px;">
+              <img src="https://www.negociclick.com/icon.svg" alt="NegociClick" width="40" height="40" style="display:block;border-radius:10px;background:#ffffff;" />
+            </td>
+            <td style="vertical-align:middle;">
+              <span style="font-size:26px;font-weight:900;color:#ffffff;font-family:Arial,sans-serif;letter-spacing:-0.5px;">Negoci</span><span style="font-size:26px;font-weight:900;color:#c7d2fe;font-family:Arial,sans-serif;letter-spacing:-0.5px;">Click</span>
+            </td>
+          </tr>
+        </table>
       </div>
       <!-- Body -->
       <div style="padding:32px;">
