@@ -29,6 +29,7 @@ model User {
   featuredPayments      FeaturedPayment[]
   passwordResetTokens   PasswordResetToken[]
   emailVerificationTokens EmailVerificationToken[]
+  refreshTokens         RefreshToken[]
 
   @@index([email])
   @@index([role])
@@ -273,6 +274,19 @@ model AvailabilityBlock {
   @@index([startDate])
   @@index([businessId, startDate, endDate])  // rango de disponibilidad por negocio
   @@map("availability_blocks")
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([token])
+  @@index([userId])
+  @@map("refresh_tokens")
 }
 
 model Review {

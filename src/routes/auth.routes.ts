@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { register, login, getProfile, updateProfile, changePassword, getPendingCount, forgotPassword, resetPassword, sendVerificationEmail, verifyEmail } from '../controllers/auth.controller';
+import { register, login, getProfile, updateProfile, changePassword, getPendingCount, forgotPassword, resetPassword, sendVerificationEmail, verifyEmail, refreshAccessToken, logout } from '../controllers/auth.controller';
 import { authenticate } from '../middleware/auth.middleware';
 import { upload } from '../lib/upload';
 import { uploadToCloudinary, deleteFromCloudinary, extractPublicId } from '../lib/cloudinary';
@@ -45,5 +45,7 @@ router.get('/pending-count', authenticate, getPendingCount);
 router.post('/avatar', authenticate, upload.single('avatar'), uploadAvatar);
 router.post('/send-verification', authenticate, sendVerificationEmail);
 router.get('/verify-email', verifyEmail);
+router.post('/refresh', refreshAccessToken);
+router.post('/logout', logout);
 
 export default router;

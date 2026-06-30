@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import prisma from '../lib/prisma';
-import { generateToken } from '../utils/jwt.util';
+import { generateAccessToken, generateRefreshToken } from '../utils/jwt.util';
 import { sendPasswordResetEmail, sendEmailVerification } from '../lib/email';
 
 const validatePassword = (password: string): string | null => {
@@ -51,16 +51,17 @@ export const register = async (req: Request, res: Response) => {
       }
     });
 
-    const token = generateToken({
-      userId: user.id,
-      email: user.email,
-      role: user.role
+    const accessToken  = generateAccessToken({ userId: user.id, email: user.email, role: user.role });
+    const refreshToken = generateRefreshToken();
+    await prisma.refreshToken.create({
+      data: { token: refreshToken, userId: user.id, expiresAt: new Date(Date.now() + 7 * 86_400_000) },
     });
 
     res.status(201).json({
       success: true,
       message: 'Usuario registrado exitosamente',
-      token,
+      token: accessToken,
+      refreshToken,
       user: {
         id: user.id,
         email: user.email,
@@ -101,15 +102,16 @@ export const login = async (req: Request, res: Response) => {
       return res.status(401).json({ error: 'Credenciales inválidas' });
     }
 
-    const token = generateToken({
-      userId: user.id,
-      email: user.email,
-      role: user.role
+    const accessToken  = generateAccessToken({ userId: user.id, email: user.email, role: user.role });
+    const refreshToken = generateRefreshToken();
+    await prisma.refreshToken.create({
+      data: { token: refreshToken, userId: user.id, expiresAt: new Date(Date.now() + 7 * 86_400_000) },
     });
 
     res.json({
       success: true,
-      token,
+      token: accessToken,
+      refreshToken,
       user: {
         id: user.id,
         email: user.email,
@@ -364,5 +366,56 @@ export const getPendingCount = async (req: Request, res: Response) => {
     res.json({ success: true, count });
   } catch {
     res.status(500).json({ error: 'Error al obtener conteo' });
+  }
+};
+
+// ============================================
+// 11. REFRESH TOKEN
+// ============================================
+export const refreshAccessToken = async (req: Request, res: Response) => {
+  try {
+    const { refreshToken } = req.body as { refreshToken: string };
+    if (!refreshToken) return res.status(400).json({ error: 'refreshToken requerido' });
+
+    const record = await prisma.refreshToken.findUnique({
+      where: { token: refreshToken },
+      include: { user: { select: { id: true, email: true, role: true, isActive: true } } },
+    });
+
+    if (!record || record.expiresAt < new Date()) {
+      if (record) await prisma.refreshToken.delete({ where: { id: record.id } });
+      return res.status(401).json({ error: 'Sesión expirada. Inicia sesión nuevamente.' });
+    }
+
+    if (!record.user.isActive) {
+      return res.status(403).json({ error: 'Cuenta desactivada.' });
+    }
+
+    const newAccessToken  = generateAccessToken({ userId: record.user.id, email: record.user.email, role: record.user.role });
+    const newRefreshToken = generateRefreshToken();
+
+    await prisma.$transaction([
+      prisma.refreshToken.delete({ where: { id: record.id } }),
+      prisma.refreshToken.create({ data: { token: newRefreshToken, userId: record.user.id, expiresAt: new Date(Date.now() + 7 * 86_400_000) } }),
+    ]);
+
+    res.json({ success: true, token: newAccessToken, refreshToken: newRefreshToken });
+  } catch {
+    res.status(500).json({ error: 'Error al renovar sesión' });
+  }
+};
+
+// ============================================
+// 12. LOGOUT
+// ============================================
+export const logout = async (req: Request, res: Response) => {
+  try {
+    const { refreshToken } = req.body as { refreshToken: string };
+    if (refreshToken) {
+      await prisma.refreshToken.deleteMany({ where: { token: refreshToken } });
+    }
+    res.json({ success: true, message: 'Sesión cerrada' });
+  } catch {
+    res.status(500).json({ error: 'Error al cerrar sesión' });
   }
 };
