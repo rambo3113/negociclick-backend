@@ -61,7 +61,40 @@ if (process.env.NODE_ENV === 'production') {
   });
 }
 
-app.use(helmet());
+const isProd = process.env.NODE_ENV === 'production';
+
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc:  ["'self'"],
+      scriptSrc:   ["'self'"],
+      styleSrc:    ["'self'", "'unsafe-inline'"],
+      imgSrc:      ["'self'", 'data:', 'https:'],
+      connectSrc:  ["'self'", 'https://api.negociclick.com', 'https://api.culqi.com'],
+      fontSrc:     ["'self'", 'https:', 'data:'],
+      objectSrc:   ["'none'"],
+      frameSrc:    ["'none'"],
+      upgradeInsecureRequests: isProd ? [] : null,
+    },
+  },
+  hsts: {
+    maxAge: 31536000,
+    includeSubDomains: true,
+    preload: true,
+  },
+  xContentTypeOptions: true,        // X-Content-Type-Options: nosniff
+  frameguard: { action: 'sameorigin' },  // X-Frame-Options: SAMEORIGIN
+  xssFilter: true,                   // X-XSS-Protection: 1; mode=block
+  referrerPolicy: { policy: 'no-referrer-when-downgrade' },
+  permittedCrossDomainPolicies: false,
+  crossOriginEmbedderPolicy: false,  // evita romper integraciones externas (Culqi)
+}));
+
+// Permissions-Policy (no incluido en Helmet v8 por defecto)
+app.use((_req, res, next) => {
+  res.setHeader('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
+  next();
+});
 
 const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:3000')
   .split(',')
@@ -69,14 +102,14 @@ const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:3000')
 
 app.use(cors({
   origin: (origin, callback) => {
-    // Permitir requests sin origin (Postman, mobile apps, server-to-server)
-    if (!origin) return callback(null, true);
+    if (!origin) return callback(null, true);           // Postman / server-to-server
     if (allowedOrigins.includes(origin)) return callback(null, true);
     callback(new Error(`CORS: origen no permitido — ${origin}`));
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  maxAge: 86400,                     // preflight cacheado 24h
 }));
 
 // Rate limiting (skip automático en NODE_ENV !== 'production')
