@@ -24,6 +24,7 @@ function base(content: string) {
       <div style="background:#f1f5f9;padding:16px 32px;text-align:center;">
         <p style="margin:0;font-size:12px;color:#94a3b8;">
           © 2026 NegociClick · Lima, Perú<br/>
+          WhatsApp: <a href="https://wa.me/51983081196" style="color:#94a3b8;">+51 983 081 196</a><br/>
           Este correo fue enviado automáticamente, por favor no respondas directamente.
         </p>
       </div>
