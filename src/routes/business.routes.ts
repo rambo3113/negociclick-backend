@@ -10,6 +10,7 @@ import {
   uploadCoverImage,
   updateBusinessProfile,
 } from '../controllers/business.controller';
+import { recordView, getAnalytics } from '../controllers/analytics.controller';
 import { authenticate } from '../middleware/auth.middleware';
 import { upload } from '../lib/upload';
 
@@ -19,8 +20,10 @@ const router = Router();
 router.get('/', getAllBusinesses);
 router.get('/my', authenticate, getMyBusinesses);
 router.get('/:id', getBusinessById);
+router.post('/:id/view', recordView);
 
-// Rutas protegidas (requieren autenticación)
+// Rutas protegidas
+router.get('/:id/analytics', authenticate, getAnalytics);
 router.post('/', authenticate, createBusiness);
 router.put('/:id', authenticate, updateBusiness);
 router.put('/:id/profile', authenticate, updateBusinessProfile);
