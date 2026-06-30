@@ -17,6 +17,7 @@ import photosRoutes from './routes/photos.routes';
 import { startCancelExpiredBookings } from './jobs/cancelExpiredBookings';
 import { startAppointmentReminders } from './jobs/appointmentReminder';
 import { startCleanupTokens } from './jobs/cleanupTokens';
+import { startCleanupRefreshTokens } from './jobs/cleanupRefreshTokens';
 import { startExpireSubscriptions } from './jobs/expireSubscriptions';
 import { startExpireFeatured } from './jobs/expireFeatured';
 import reclamoRoutes from './routes/reclamo.routes';
@@ -116,6 +117,7 @@ const server = app.listen(Number(PORT), '0.0.0.0', () => {
   startCancelExpiredBookings();
   startAppointmentReminders();
   startCleanupTokens();
+  startCleanupRefreshTokens();
   startExpireSubscriptions();
   startExpireFeatured();
 });
