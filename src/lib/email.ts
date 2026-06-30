@@ -11,17 +11,10 @@ function base(content: string) {
   <body style="margin:0;padding:0;background:#f8fafc;font-family:Arial,Helvetica,sans-serif;">
     <div style="max-width:560px;margin:32px auto;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
       <!-- Header -->
-      <div style="background:linear-gradient(135deg,#6366f1,#a855f7);padding:32px;text-align:center;">
-        <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 auto;">
-          <tr>
-            <td style="background:#ffffff;border-radius:10px;width:40px;height:40px;text-align:center;vertical-align:middle;padding:0 8px;">
-              <span style="font-size:22px;font-weight:900;color:#6366f1;font-family:Arial,Helvetica,sans-serif;line-height:40px;">N</span>
-            </td>
-            <td style="padding-left:12px;vertical-align:middle;">
-              <span style="font-size:26px;font-weight:900;color:#ffffff;font-family:Arial,Helvetica,sans-serif;letter-spacing:-0.5px;">Negoci</span><span style="font-size:26px;font-weight:900;color:#c7d2fe;font-family:Arial,Helvetica,sans-serif;letter-spacing:-0.5px;">Click</span>
-            </td>
-          </tr>
-        </table>
+      <div style="background:linear-gradient(135deg,#6366f1,#a855f7);padding:28px 32px;text-align:center;">
+        <p style="margin:0;font-size:24px;font-weight:900;font-family:Arial,Helvetica,sans-serif;letter-spacing:-0.5px;">
+          ⚡ <span style="color:#ffffff;">Negoci</span><span style="color:#c7d2fe;">Click</span>
+        </p>
       </div>
       <!-- Body -->
       <div style="padding:32px;">
