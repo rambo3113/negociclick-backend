@@ -388,6 +388,58 @@ export async function sendBookingCancelledToVendor(opts: {
   `));
 }
 
+// ── 14. Destacado vence pronto → vendor ─────────────────────────────────────
+export async function sendFeaturedExpiring(opts: {
+  email: string;
+  name: string;
+  businessName: string;
+  featuredUntil: Date;
+  daysLeft: number;
+}) {
+  const dateStr = opts.featuredUntil.toLocaleDateString('es-PE', { day: '2-digit', month: 'long', year: 'numeric' });
+  await send(opts.email, `Tu Negocio Destacado vence en ${opts.daysLeft} día${opts.daysLeft !== 1 ? 's' : ''} — ${opts.businessName}`, base(`
+    <h2 style="margin:0 0 8px;font-size:20px;color:#1e293b;">⭐ Tu destacado vence pronto</h2>
+    <p style="margin:0 0 24px;color:#64748b;font-size:14px;">
+      Hola <strong>${opts.name}</strong>, tu negocio <strong>${opts.businessName}</strong> dejará de aparecer
+      destacado en <strong>${opts.daysLeft} día${opts.daysLeft !== 1 ? 's' : ''}</strong> (${dateStr}).
+    </p>
+    <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:16px 20px;margin-bottom:24px;">
+      <p style="margin:0;font-size:14px;color:#92400e;">
+        ⏰ Renueva ahora para seguir apareciendo primero en los resultados y con badge dorado.
+      </p>
+    </div>
+    <a href="https://www.negociclick.com/dashboard" style="display:inline-block;background:linear-gradient(135deg,#f59e0b,#f97316);color:#ffffff;font-weight:700;font-size:15px;padding:14px 28px;border-radius:10px;text-decoration:none;">
+      Renovar Destacado →
+    </a>
+    <p style="margin:24px 0 0;font-size:13px;color:#94a3b8;">Si ya no quieres renovar, tu negocio seguirá activo pero sin la posición destacada.</p>
+  `));
+}
+
+// ── 15. Destacado expirado → vendor ─────────────────────────────────────────
+export async function sendFeaturedExpired(opts: {
+  email: string;
+  name: string;
+  businessName: string;
+}) {
+  await send(opts.email, `Tu Negocio Destacado expiró — ${opts.businessName}`, base(`
+    <h2 style="margin:0 0 8px;font-size:20px;color:#1e293b;">Tu período destacado terminó</h2>
+    <p style="margin:0 0 24px;color:#64748b;font-size:14px;">
+      Hola <strong>${opts.name}</strong>, el período de <strong>${opts.businessName}</strong> como
+      Negocio Destacado ha vencido. Tu negocio sigue activo, pero ya no aparecerá primero ni con el badge dorado.
+    </p>
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:16px 20px;margin-bottom:24px;">
+      <p style="margin:0 0 8px;font-size:14px;color:#1e293b;font-weight:600;">¿Quieres volver a destacarte?</p>
+      <p style="margin:0;font-size:14px;color:#64748b;">
+        Desde S/ 19.90 por 7 días · S/ 34.90 por 15 días · S/ 59.90 por 30 días
+      </p>
+    </div>
+    <a href="https://www.negociclick.com/dashboard" style="display:inline-block;background:linear-gradient(135deg,#6366f1,#a855f7);color:#ffffff;font-weight:700;font-size:15px;padding:14px 28px;border-radius:10px;text-decoration:none;">
+      Volver a Destacar →
+    </a>
+    <p style="margin:24px 0 0;font-size:13px;color:#94a3b8;">Tu negocio seguirá recibiendo reservas normalmente.</p>
+  `));
+}
+
 // ── 13. Reserva reagendada → vendor ─────────────────────────────────────────
 export async function sendBookingRescheduledToVendor(opts: {
   vendorEmail: string;

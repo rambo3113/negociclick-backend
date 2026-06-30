@@ -38,7 +38,7 @@ export const getFeaturedPricing = async (_req: Request, res: Response) => {
 export const purchaseFeatured = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).userId;
-    const { id: businessId } = req.params;
+    const businessId = req.params.id as string;
     const { culqiToken, period } = req.body as { culqiToken: string; period: string };
 
     if (!culqiToken || !period) {
@@ -50,7 +50,10 @@ export const purchaseFeatured = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Período inválido. Usa: 7days, 15days o 30days' });
     }
 
-    const business = await prisma.business.findUnique({ where: { id: businessId }, include: { owner: true } });
+    const business = await prisma.business.findUnique({
+      where: { id: businessId },
+      include: { owner: { select: { email: true, name: true } } },
+    });
     if (!business) return res.status(404).json({ error: 'Negocio no encontrado' });
     if (business.ownerId !== userId) return res.status(403).json({ error: 'No tienes permiso' });
 
@@ -58,7 +61,7 @@ export const purchaseFeatured = async (req: Request, res: Response) => {
     const charge = await culqiCharge(
       culqiToken,
       pricing.price,
-      business.owner.email,
+      business.owner.email ?? '',
       `NegociClick Destacado ${pricing.label} — ${business.name}`,
     );
 
@@ -96,12 +99,12 @@ export const purchaseFeatured = async (req: Request, res: Response) => {
 export const getFeaturedStatus = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).userId;
-    const { id: businessId } = req.params;
+    const businessId = req.params.id as string;
 
     const business = await prisma.business.findUnique({
       where: { id: businessId },
       select: { ownerId: true, featured: true, featuredUntil: true },
-    });
+    }) as { ownerId: string; featured: boolean; featuredUntil: Date | null } | null;
 
     if (!business) return res.status(404).json({ error: 'Negocio no encontrado' });
     if (business.ownerId !== userId) return res.status(403).json({ error: 'No tienes permiso' });

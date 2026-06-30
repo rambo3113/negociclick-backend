@@ -18,6 +18,7 @@ import { startCancelExpiredBookings } from './jobs/cancelExpiredBookings';
 import { startAppointmentReminders } from './jobs/appointmentReminder';
 import { startCleanupTokens } from './jobs/cleanupTokens';
 import { startExpireSubscriptions } from './jobs/expireSubscriptions';
+import { startExpireFeatured } from './jobs/expireFeatured';
 import reclamoRoutes from './routes/reclamo.routes';
 import chatRoutes from './routes/chat.routes';
 import featuredRoutes from './routes/featured.routes';
@@ -116,6 +117,7 @@ const server = app.listen(Number(PORT), '0.0.0.0', () => {
   startAppointmentReminders();
   startCleanupTokens();
   startExpireSubscriptions();
+  startExpireFeatured();
 });
 
 // Graceful shutdown — espera requests activos antes de cerrar
