@@ -276,6 +276,21 @@ model AvailabilityBlock {
   @@map("availability_blocks")
 }
 
+model AuditLog {
+  id        String   @id @default(cuid())
+  action    String                        // LOGIN, LOGOUT, ROLE_CHANGE, BUSINESS_TOGGLE, PAYMENT, FEATURED_PURCHASE, etc.
+  userId    String?
+  targetId  String?                       // ID del recurso afectado
+  meta      String?                       // JSON con detalles extra
+  ip        String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
 model RefreshToken {
   id        String   @id @default(cuid())
   token     String   @unique

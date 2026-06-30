@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import prisma from '../lib/prisma';
+import { audit } from '../lib/audit';
 
 const CULQI_API = 'https://api.culqi.com/v2';
 
@@ -93,6 +94,7 @@ export const purchaseFeatured = async (req: Request, res: Response) => {
         featuredUntil,
       },
     });
+    audit('FEATURED_PURCHASE', { userId, targetId: businessId, meta: { period, amount: pricing.price, chargeId: charge.id }, req });
 
     res.json({
       success: true,

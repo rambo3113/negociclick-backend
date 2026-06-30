@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import prisma from '../lib/prisma';
+import { audit } from '../lib/audit';
 
 export const getAdminStats = async (_req: Request, res: Response) => {
   try {
@@ -131,6 +132,7 @@ export const updateUserRole = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Rol inválido' });
     }
     const user = await prisma.user.update({ where: { id }, data: { role } });
+    audit('ROLE_CHANGE', { userId: (req as any).userId, targetId: id, meta: { newRole: role }, req });
     res.json({ success: true, user: { id: user.id, name: user.name, role: user.role } });
   } catch {
     res.status(500).json({ error: 'Error al actualizar rol' });
@@ -143,8 +145,26 @@ export const toggleBusinessActive = async (req: Request, res: Response) => {
     const biz = await prisma.business.findUnique({ where: { id }, select: { isActive: true } });
     if (!biz) return res.status(404).json({ error: 'Negocio no encontrado' });
     const updated = await prisma.business.update({ where: { id }, data: { isActive: !biz.isActive } });
+    audit('BUSINESS_TOGGLE', { userId: (req as any).userId, targetId: id, meta: { isActive: updated.isActive }, req });
     res.json({ success: true, isActive: updated.isActive });
   } catch {
     res.status(500).json({ error: 'Error al actualizar negocio' });
+  }
+};
+
+export const getAuditLogs = async (req: Request, res: Response) => {
+  try {
+    const { action, userId, limit = '100' } = req.query as Record<string, string>;
+    const logs = await prisma.auditLog.findMany({
+      where: {
+        ...(action ? { action } : {}),
+        ...(userId ? { userId } : {}),
+      },
+      orderBy: { createdAt: 'desc' },
+      take: Math.min(500, parseInt(limit)),
+    });
+    res.json({ success: true, count: logs.length, logs });
+  } catch {
+    res.status(500).json({ error: 'Error al obtener logs' });
   }
 };

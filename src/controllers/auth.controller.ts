@@ -4,6 +4,7 @@ import crypto from 'crypto';
 import prisma from '../lib/prisma';
 import { generateAccessToken, generateRefreshToken } from '../utils/jwt.util';
 import { sendPasswordResetEmail, sendEmailVerification } from '../lib/email';
+import { audit } from '../lib/audit';
 
 const validatePassword = (password: string): string | null => {
   if (password.length < 8) return 'La contraseña debe tener al menos 8 caracteres';
@@ -56,6 +57,7 @@ export const register = async (req: Request, res: Response) => {
     await prisma.refreshToken.create({
       data: { token: refreshToken, userId: user.id, expiresAt: new Date(Date.now() + 7 * 86_400_000) },
     });
+    audit('REGISTER', { userId: user.id, meta: { email: user.email, role: user.role }, req });
 
     res.status(201).json({
       success: true,
@@ -107,6 +109,7 @@ export const login = async (req: Request, res: Response) => {
     await prisma.refreshToken.create({
       data: { token: refreshToken, userId: user.id, expiresAt: new Date(Date.now() + 7 * 86_400_000) },
     });
+    audit('LOGIN', { userId: user.id, meta: { email: user.email }, req });
 
     res.json({
       success: true,
@@ -410,10 +413,12 @@ export const refreshAccessToken = async (req: Request, res: Response) => {
 // ============================================
 export const logout = async (req: Request, res: Response) => {
   try {
+    const userId = (req as any).userId as string | undefined;
     const { refreshToken } = req.body as { refreshToken: string };
     if (refreshToken) {
       await prisma.refreshToken.deleteMany({ where: { token: refreshToken } });
     }
+    audit('LOGOUT', { userId, req });
     res.json({ success: true, message: 'Sesión cerrada' });
   } catch {
     res.status(500).json({ error: 'Error al cerrar sesión' });

@@ -6,6 +6,7 @@ import {
   getFeaturedPaymentsAdmin,
   updateUserRole,
   toggleBusinessActive,
+  getAuditLogs,
 } from '../controllers/admin.controller';
 import { authenticate } from '../middleware/auth.middleware';
 import { requireAdmin } from '../middleware/admin.middleware';
@@ -22,5 +23,6 @@ router.get('/businesses',             getAllBusinessesAdmin);
 router.get('/featured-payments',      getFeaturedPaymentsAdmin);
 router.put('/users/:id/role',         validate(updateRoleSchema), updateUserRole);
 router.put('/businesses/:id/toggle',  toggleBusinessActive);
+router.get('/audit-logs',             getAuditLogs);
 
 export default router;
