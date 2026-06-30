@@ -1,7 +1,7 @@
 import { Resend } from 'resend';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
-const FROM = 'NegociClick <noreply@negociclick.com>';
+const FROM = process.env.RESEND_FROM ?? 'NegociClick <onboarding@resend.dev>';
 
 function base(content: string) {
   return `
