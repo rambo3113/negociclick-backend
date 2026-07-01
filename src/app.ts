@@ -23,7 +23,13 @@ import { startExpireFeatured } from './jobs/expireFeatured';
 import reclamoRoutes from './routes/reclamo.routes';
 import chatRoutes from './routes/chat.routes';
 import featuredRoutes from './routes/featured.routes';
-import { authLimiter, paymentLimiter, generalLimiter } from './middleware/rateLimit.middleware';
+import {
+  loginLimiter,
+  registerLimiter,
+  searchLimiter,
+  paymentLimiter,
+  generalLimiter,
+} from './middleware/rateLimit.middleware';
 import availabilityRoutes from './routes/availability.routes';
 
 dotenv.config();
@@ -112,10 +118,13 @@ app.use(cors({
   maxAge: 86400,                     // preflight cacheado 24h
 }));
 
-// Rate limiting (skip automático en NODE_ENV !== 'production')
-app.use('/api/auth',     authLimiter);
-app.use('/api/payments', paymentLimiter);
-app.use('/api',          generalLimiter);
+// Rate limiting — orden importa: específico antes que general
+// forgot-password no va aquí — ya tiene su limiter en auth.routes.ts
+app.post('/api/auth/login',    loginLimiter);
+app.post('/api/auth/register', registerLimiter);
+app.get('/api/businesses',     searchLimiter);  // búsqueda pública
+app.use('/api/payments',       paymentLimiter);
+app.use('/api',                generalLimiter); // catch-all
 
 app.use(express.json({
   verify: (req: any, _res, buf) => { req.rawBody = buf.toString('utf8'); },

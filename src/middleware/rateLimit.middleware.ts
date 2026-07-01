@@ -1,44 +1,78 @@
-import rateLimit from 'express-rate-limit';
+import rateLimit, { Options } from 'express-rate-limit';
 import { Request } from 'express';
 
 const skipInTest = (_req: Request) => process.env.NODE_ENV === 'test';
 
-// Login y registro: 30 intentos por 15 min por IP
-export const authLimiter = rateLimit({
+const base: Partial<Options> = {
+  skip: skipInTest,
+  standardHeaders: true,   // devuelve RateLimit-* headers (RFC 6585)
+  legacyHeaders: false,
+};
+
+// ── 1. LOGIN — 5 intentos / 15 min, key = email del body (fallback: IP) ──────
+export const loginLimiter = rateLimit({
+  ...base,
   windowMs: 15 * 60 * 1000,
-  max: 30,
-  skip: skipInTest,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: 'Demasiados intentos. Espera 15 minutos antes de volver a intentarlo.' },
-});
-
-// Recuperación de contraseña: 5 intentos por hora por IP (más permisivo, distinto endpoint)
-export const forgotPasswordLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000,
   max: 5,
-  skip: skipInTest,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: 'Demasiados intentos de recuperación. Espera una hora antes de volver a intentarlo.' },
+  keyGenerator: (req: Request) => {
+    // key por email para que bloquee la cuenta, no la IP
+    const email = (req.body?.email as string | undefined)?.toLowerCase().trim();
+    return email ? `login:${email}` : req.ip ?? 'unknown';
+  },
+  message: { error: 'Demasiados intentos de inicio de sesión. Intenta en 15 minutos.' },
+  skipSuccessfulRequests: true,   // solo cuenta intentos fallidos
 });
 
-// Pagos: max 10 intentos por minuto por IP
+// ── 2. REGISTRO — 3 registros / hora, key = IP ───────────────────────────────
+export const registerLimiter = rateLimit({
+  ...base,
+  windowMs: 60 * 60 * 1000,
+  max: 3,
+  keyGenerator: (req: Request) => req.ip ?? 'unknown',
+  message: { error: 'Demasiados registros desde esta dirección. Intenta en 1 hora.' },
+});
+
+// ── 3. BÚSQUEDA — 30 búsquedas / minuto, key = IP ───────────────────────────
+export const searchLimiter = rateLimit({
+  ...base,
+  windowMs: 60 * 1000,
+  max: 30,
+  keyGenerator: (req: Request) => req.ip ?? 'unknown',
+  message: { error: 'Demasiadas búsquedas seguidas. Espera un momento e intenta de nuevo.' },
+});
+
+// ── 4. PAGOS — 10 intentos / minuto, key = IP ───────────────────────────────
 export const paymentLimiter = rateLimit({
+  ...base,
   windowMs: 60 * 1000,
   max: 10,
-  skip: skipInTest,
-  standardHeaders: true,
-  legacyHeaders: false,
+  keyGenerator: (req: Request) => req.ip ?? 'unknown',
   message: { error: 'Demasiados intentos de pago. Espera un momento.' },
 });
 
-// General: max 200 requests por 15 minutos por IP
-export const generalLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 200,
-  skip: skipInTest,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: 'Demasiadas solicitudes. Intenta más tarde.' },
+// ── 5. RECUPERACIÓN DE CONTRASEÑA — 5 intentos / hora, key = IP ──────────────
+export const forgotPasswordLimiter = rateLimit({
+  ...base,
+  windowMs: 60 * 60 * 1000,
+  max: 5,
+  keyGenerator: (req: Request) => req.ip ?? 'unknown',
+  message: { error: 'Demasiados intentos de recuperación. Espera una hora antes de volver a intentarlo.' },
 });
+
+// ── 6. API GENERAL — 100 requests / 15 min, key = IP ────────────────────────
+export const generalLimiter = rateLimit({
+  ...base,
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  keyGenerator: (req: Request) => req.ip ?? 'unknown',
+  message: { error: 'Demasiadas solicitudes. Intenta en 15 minutos.' },
+  skip: (req: Request) => {
+    // Health check y assets estáticos no cuentan
+    if (process.env.NODE_ENV === 'test') return true;
+    if (req.path === '/health') return true;
+    return false;
+  },
+});
+
+// Alias para compatibilidad con imports anteriores
+export const authLimiter = loginLimiter;
