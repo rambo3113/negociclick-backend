@@ -9,6 +9,7 @@ import {
   cancelBooking,
   markAsPaid,
   getEarnings,
+  getAgenda,
   getAvailableSlots,
 } from '../controllers/booking.controller';
 import { authenticate } from '../middleware/auth.middleware';
@@ -27,6 +28,7 @@ router.post('/', validate(createBookingSchema), createBooking);
 router.get('/my', getMyBookings);
 router.get('/business/:businessId', getBookingsByBusiness);
 router.get('/business/:businessId/earnings', getEarnings);
+router.get('/business/:businessId/agenda',  getAgenda);
 router.get('/:id', getBookingById);
 router.put('/:id/status', updateBookingStatus);
 router.put('/:id/reschedule', rescheduleBooking);

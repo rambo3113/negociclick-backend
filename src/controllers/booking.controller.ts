@@ -830,7 +830,62 @@ export const getEarnings = async (req: Request, res: Response) => {
 };
 
 // ============================================
-// 10. SLOTS DISPONIBLES (público)
+// 10. AGENDA DIARIA DEL NEGOCIO (vendor)
+// GET /api/bookings/agenda/:businessId?date=YYYY-MM-DD
+// ============================================
+export const getAgenda = async (req: Request, res: Response) => {
+  try {
+    const vendorId   = (req as any).userId as string;
+    const businessId = req.params.businessId as string;
+    const { date }   = req.query as { date?: string };
+
+    const business = await prisma.business.findUnique({ where: { id: businessId } });
+    if (!business) return res.status(404).json({ error: 'Negocio no encontrado' });
+    if (business.ownerId !== vendorId) return res.status(403).json({ error: 'No tienes permiso' });
+
+    // Si no se pasa fecha, usar hoy en Lima (UTC-5)
+    const targetDate = date && /^\d{4}-\d{2}-\d{2}$/.test(date)
+      ? date
+      : new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Lima' }).format(new Date());
+
+    const [year, month, day] = targetDate.split('-').map(Number);
+    const dayStartUTC = new Date(Date.UTC(year, month - 1, day,     5, 0, 0)); // 00:00 Lima
+    const dayEndUTC   = new Date(Date.UTC(year, month - 1, day + 1, 5, 0, 0)); // 23:59 Lima
+
+    const bookings = await prisma.booking.findMany({
+      where: {
+        businessId,
+        date: { gte: dayStartUTC, lt: dayEndUTC },
+        status: { in: ['PENDING', 'CONFIRMED', 'COMPLETED'] },
+      },
+      include: {
+        service: { select: { name: true, duration: true, price: true } },
+        client:  { select: { name: true, phone: true, email: true } },
+        payment: { select: { status: true, provider: true } },
+      },
+      orderBy: { date: 'asc' },
+    });
+
+    const result = bookings.map(b => ({
+      id:          b.id,
+      date:        b.date,
+      status:      b.status,
+      totalAmount: Number(b.totalAmount),
+      notes:       b.notes,
+      service:     { name: b.service.name, duration: b.service.duration ?? 60, price: Number(b.service.price) },
+      client:      { name: b.client.name, phone: b.client.phone, email: b.client.email },
+      payment:     b.payment ? { status: b.payment.status, provider: b.payment.provider } : null,
+    }));
+
+    res.json({ success: true, date: targetDate, bookings: result });
+  } catch (error: any) {
+    console.error('Error al obtener agenda:', error);
+    res.status(500).json({ error: 'Error al obtener agenda' });
+  }
+};
+
+// ============================================
+// 11. SLOTS DISPONIBLES (público)
 // GET /api/bookings/slots/:serviceId?date=YYYY-MM-DD
 // ============================================
 export const getAvailableSlots = async (req: Request, res: Response) => {
