@@ -28,8 +28,7 @@ export function validateQuery(schema: z.ZodTypeAny) {
       }));
       return res.status(400).json({ error: 'Parámetros de búsqueda inválidos', errors });
     }
-    // Sobreescribir req.query con los valores sanitizados y coercionados
-    req.query = result.data as Record<string, string>;
+    Object.assign(req.query, result.data);
     next();
   };
 }

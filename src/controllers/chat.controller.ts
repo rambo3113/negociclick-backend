@@ -3,7 +3,7 @@ import Anthropic from '@anthropic-ai/sdk';
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-const SYSTEM_PROMPT = `Eres el asistente virtual de NegociClick, un marketplace de servicios en Lima, Perú. Tu nombre es "Nico".
+const SYSTEM_PROMPT = `Eres el asistente virtual de NegociClick, un marketplace de servicios en Lima, Perú. Tu nombre es "Ozzy".
 
 Tu rol es ayudar a usuarios (clientes y dueños de negocios) con dudas sobre la plataforma NegociClick. Responde siempre en español, de forma clara, amable y concisa.
 
