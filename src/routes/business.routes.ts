@@ -12,12 +12,14 @@ import {
 } from '../controllers/business.controller';
 import { recordView, getAnalytics } from '../controllers/analytics.controller';
 import { authenticate } from '../middleware/auth.middleware';
+import { validateQuery } from '../middleware/validate.middleware';
+import { searchQuerySchema } from '../lib/schemas';
 import { upload } from '../lib/upload';
 
 const router = Router();
 
 // Rutas públicas
-router.get('/', getAllBusinesses);
+router.get('/', validateQuery(searchQuerySchema), getAllBusinesses);
 router.get('/my', authenticate, getMyBusinesses);
 router.get('/:id', getBusinessById);
 router.post('/:id/view', recordView);
