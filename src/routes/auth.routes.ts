@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { register, login, getProfile, updateProfile, changePassword, getPendingCount, forgotPassword, resetPassword, sendVerificationEmail, verifyEmail, refreshAccessToken, logout, deleteAccount } from '../controllers/auth.controller';
+import { setup2FA, enable2FA, verifyLogin2FA, disable2FA, get2FAStatus, regenerateBackupCodes } from '../controllers/twofa.controller';
 import { authenticate } from '../middleware/auth.middleware';
 import { upload } from '../lib/upload';
 import { uploadToCloudinary, deleteFromCloudinary, extractPublicId } from '../lib/cloudinary';
@@ -48,5 +49,13 @@ router.get('/verify-email', verifyEmail);
 router.post('/refresh', refreshAccessToken);
 router.post('/logout', logout);
 router.delete('/account', authenticate, deleteAccount);
+
+// 2FA
+router.get('/2fa/status',                   authenticate, get2FAStatus);
+router.post('/2fa/setup',                   authenticate, setup2FA);
+router.post('/2fa/enable',                  authenticate, enable2FA);
+router.post('/2fa/verify-login',            verifyLogin2FA);
+router.post('/2fa/disable',                 authenticate, disable2FA);
+router.post('/2fa/regenerate-backup-codes', authenticate, regenerateBackupCodes);
 
 export default router;

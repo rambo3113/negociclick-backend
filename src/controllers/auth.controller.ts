@@ -1,10 +1,13 @@
 import { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
+import jwt from 'jsonwebtoken';
 import prisma from '../lib/prisma';
 import { generateAccessToken, generateRefreshToken } from '../utils/jwt.util';
 import { sendPasswordResetEmail, sendEmailVerification, sendWelcomeVendor, sendWelcomeClient } from '../lib/email';
 import { audit } from '../lib/audit';
+
+const JWT_SECRET = process.env.JWT_SECRET!;
 
 const validatePassword = (password: string): string | null => {
   if (password.length < 8) return 'La contraseña debe tener al menos 8 caracteres';
@@ -110,6 +113,20 @@ export const login = async (req: Request, res: Response) => {
     if (!valid) {
       audit('LOGIN_FAILED', { userId: user.id, meta: { email: user.email, reason: 'wrong_password' }, req });
       return res.status(401).json({ error: 'Credenciales inválidas' });
+    }
+
+    // Si 2FA está habilitado, emitir token temporal (válido 5 min)
+    if (user.twoFactorEnabled) {
+      const tempToken = jwt.sign(
+        { userId: user.id, purpose: '2fa_pending' },
+        JWT_SECRET,
+        { expiresIn: '5m' },
+      );
+      return res.json({
+        requiresTwoFactor: true,
+        tempToken,
+        message: 'Ingresa el código de 6 dígitos de tu autenticador',
+      });
     }
 
     const accessToken  = generateAccessToken({ userId: user.id, email: user.email, role: user.role });

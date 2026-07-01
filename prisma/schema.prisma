@@ -18,6 +18,10 @@ model User {
   isActive          Boolean  @default(true)
   emailVerified     Boolean  @default(false)
   emailVerifiedAt   DateTime?
+  twoFactorEnabled     Boolean   @default(false)
+  twoFactorSecret      String?
+  twoFactorBackupCodes String[]  @default([])
+  twoFactorVerifiedAt  DateTime?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
