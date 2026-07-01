@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { register, login, getProfile, updateProfile, changePassword, getPendingCount, forgotPassword, resetPassword, sendVerificationEmail, verifyEmail, refreshAccessToken, logout } from '../controllers/auth.controller';
+import { register, login, getProfile, updateProfile, changePassword, getPendingCount, forgotPassword, resetPassword, sendVerificationEmail, verifyEmail, refreshAccessToken, logout, deleteAccount } from '../controllers/auth.controller';
 import { authenticate } from '../middleware/auth.middleware';
 import { upload } from '../lib/upload';
 import { uploadToCloudinary, deleteFromCloudinary, extractPublicId } from '../lib/cloudinary';
@@ -47,5 +47,6 @@ router.post('/send-verification', authenticate, sendVerificationEmail);
 router.get('/verify-email', verifyEmail);
 router.post('/refresh', refreshAccessToken);
 router.post('/logout', logout);
+router.delete('/account', authenticate, deleteAccount);
 
 export default router;

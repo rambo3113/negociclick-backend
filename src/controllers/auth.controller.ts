@@ -379,7 +379,42 @@ export const getPendingCount = async (req: Request, res: Response) => {
 };
 
 // ============================================
-// 11. REFRESH TOKEN
+// 11. ELIMINAR CUENTA (requiere JWT válido)
+// ============================================
+export const deleteAccount = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).userId as string;
+    const { password } = req.body as { password?: string };
+
+    if (!password) {
+      return res.status(400).json({ error: 'Debes confirmar tu contraseña para eliminar la cuenta' });
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
+
+    const valid = await bcrypt.compare(password, user.password);
+    if (!valid) return res.status(401).json({ error: 'Contraseña incorrecta. No se puede eliminar la cuenta.' });
+
+    // Eliminar en orden para respetar foreign keys
+    await prisma.$transaction([
+      prisma.refreshToken.deleteMany({ where: { userId } }),
+      prisma.passwordResetToken.deleteMany({ where: { userId } }),
+      prisma.emailVerificationToken.deleteMany({ where: { userId } }),
+      prisma.auditLog.updateMany({ where: { userId }, data: { userId: null } }),
+      prisma.user.update({ where: { id: userId }, data: { isActive: false, email: `deleted_${userId}@negociclick.deleted`, name: '[Cuenta eliminada]', password: '' } }),
+    ]);
+
+    audit('ACCOUNT_DELETED', { userId, req });
+    res.json({ success: true, message: 'Cuenta eliminada correctamente.' });
+  } catch (error: any) {
+    console.error('[deleteAccount]', error?.message);
+    res.status(500).json({ error: 'Error al eliminar la cuenta' });
+  }
+};
+
+// ============================================
+// 12. REFRESH TOKEN
 // ============================================
 export const refreshAccessToken = async (req: Request, res: Response) => {
   try {
