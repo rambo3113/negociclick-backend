@@ -106,6 +106,7 @@ export const searchQuerySchema = z.object({
   minRating: z.coerce.number().min(0).max(5).optional(),
   minPrice:  z.coerce.number().min(0).max(99999).optional(),
   maxPrice:  z.coerce.number().min(0).max(99999).optional(),
+  sortBy:    z.enum(['featured', 'rating', 'price_asc', 'price_desc', 'newest', 'popular']).optional(),
   page:      z.coerce.number().int().positive().max(1000).optional(),
   limit:     z.coerce.number().int().min(1).max(50).optional(),
 });

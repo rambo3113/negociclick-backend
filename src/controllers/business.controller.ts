@@ -99,18 +99,20 @@ export const createBusiness = async (req: Request, res: Response) => {
 // ============================================
 export const getAllBusinesses = async (req: Request, res: Response) => {
   try {
-    const { category, city, search, minRating, minPrice, maxPrice, page, limit } = req.query as Record<string, string>;
+    const { category, city, search, minRating, minPrice, maxPrice, sortBy, page, limit } = req.query as Record<string, string>;
 
     const pageNum  = Math.max(1, parseInt(page  || '1'));
     const limitNum = Math.min(50, Math.max(1, parseInt(limit || '20')));
     const skip = (pageNum - 1) * limitNum;
 
-    // Búsquedas con texto libre no se cachean (demasiadas variaciones)
+    // sortBy: 'featured' (default) | 'rating' | 'price_asc' | 'price_desc' | 'newest' | 'popular'
+    const validSort = ['featured', 'rating', 'price_asc', 'price_desc', 'newest', 'popular'];
+    const sort = validSort.includes(sortBy) ? sortBy : 'featured';
+
+    const cacheKeyStr = `${category||''}:${city||''}:${minRating||''}:${minPrice||''}:${maxPrice||''}:${sort}:${pageNum}:${limitNum}`;
+
     if (!search) {
-      const listCacheKey = cacheKey.businessList(
-        `${category||''}:${city||''}:${minRating||''}:${minPrice||''}:${maxPrice||''}:${pageNum}:${limitNum}`
-      );
-      const cached = cacheGet<object>(listCacheKey);
+      const cached = cacheGet<object>(cacheKey.businessList(cacheKeyStr));
       if (cached) return res.json(cached);
     }
 
@@ -137,6 +139,12 @@ export const getAllBusinesses = async (req: Request, res: Response) => {
       } : {}),
     };
 
+    // Ordenamiento en DB cuando es posible; rating/price se ordenan en memoria post-fetch
+    const dbOrderBy: object[] =
+      sort === 'newest'   ? [{ createdAt: 'desc' }] :
+      sort === 'popular'  ? [{ viewCount: 'desc' }, { featured: 'desc' }] :
+                            [{ featured: 'desc' }, { createdAt: 'desc' }];
+
     const [businesses, total] = await Promise.all([
       prisma.business.findMany({
         where,
@@ -145,14 +153,14 @@ export const getAllBusinesses = async (req: Request, res: Response) => {
           services: { where: { isActive: true } },
           reviews:  { select: { rating: true } },
         },
-        orderBy: [{ featured: 'desc' }, { createdAt: 'desc' }],
+        orderBy: dbOrderBy,
         skip,
         take: limitNum,
       }),
       prisma.business.count({ where }),
     ]);
 
-    const result = businesses.map(b => {
+    let result = businesses.map(b => {
       const totalReviews = b.reviews.length;
       const averageRating = totalReviews > 0
         ? Number((b.reviews.reduce((s, r) => s + r.rating, 0) / totalReviews).toFixed(1))
@@ -162,6 +170,15 @@ export const getAllBusinesses = async (req: Request, res: Response) => {
       const isFeatured = b.featured && !!b.featuredUntil && b.featuredUntil > now;
       return { ...b, averageRating, totalReviews, minPrice: minSvcPrice, featured: isFeatured };
     });
+
+    // Ordenamiento en memoria para rating y precio (requiere datos calculados)
+    if (sort === 'rating') {
+      result.sort((a, b) => (b.averageRating ?? 0) - (a.averageRating ?? 0));
+    } else if (sort === 'price_asc') {
+      result.sort((a, b) => (a.minPrice ?? Infinity) - (b.minPrice ?? Infinity));
+    } else if (sort === 'price_desc') {
+      result.sort((a, b) => (b.minPrice ?? 0) - (a.minPrice ?? 0));
+    }
 
     const payload = {
       success: true,
@@ -173,10 +190,7 @@ export const getAllBusinesses = async (req: Request, res: Response) => {
     };
 
     if (!search) {
-      const listCacheKey = cacheKey.businessList(
-        `${category||''}:${city||''}:${minRating||''}:${minPrice||''}:${maxPrice||''}:${pageNum}:${limitNum}`
-      );
-      cacheSet(listCacheKey, payload, TTL.BUSINESS_LIST);
+      cacheSet(cacheKey.businessList(cacheKeyStr), payload, TTL.BUSINESS_LIST);
     }
 
     res.json(payload);
