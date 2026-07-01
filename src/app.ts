@@ -30,6 +30,7 @@ import {
   paymentLimiter,
   generalLimiter,
 } from './middleware/rateLimit.middleware';
+import { auditHttpError } from './lib/audit';
 import availabilityRoutes from './routes/availability.routes';
 
 dotenv.config();
@@ -151,6 +152,27 @@ app.use('/api/payments', paymentRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/reclamos', reclamoRoutes);
 app.use('/api/chat', chatRoutes);
+
+// ── Middleware de logging de errores HTTP ────────────────────────────────────
+// Captura cualquier res con status 4xx/5xx para el audit log de archivo
+// Debe ir DESPUÉS de todas las rutas
+app.use((req, res, next) => {
+  const originalJson = res.json.bind(res);
+  res.json = function (body: unknown) {
+    const status = res.statusCode;
+    if (status >= 400) {
+      const errorMsg = (body as any)?.error ?? String(status);
+      auditHttpError(status, {
+        endpoint:  req.path,
+        method:    req.method,
+        error:     errorMsg,
+        req,
+      });
+    }
+    return originalJson(body);
+  };
+  next();
+});
 
 const server = app.listen(Number(PORT), '0.0.0.0', () => {
   console.log(`🚀 Servidor en http://localhost:${PORT}`);

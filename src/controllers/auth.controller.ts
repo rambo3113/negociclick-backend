@@ -102,11 +102,13 @@ export const login = async (req: Request, res: Response) => {
     });
 
     if (!user) {
+      audit('LOGIN_FAILED', { meta: { email: email.trim(), reason: 'user_not_found' }, req });
       return res.status(401).json({ error: 'Credenciales inválidas' });
     }
 
     const valid = await bcrypt.compare(password, user.password);
     if (!valid) {
+      audit('LOGIN_FAILED', { userId: user.id, meta: { email: user.email, reason: 'wrong_password' }, req });
       return res.status(401).json({ error: 'Credenciales inválidas' });
     }
 
@@ -219,10 +221,14 @@ export const changePassword = async (req: Request, res: Response) => {
     if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
 
     const valid = await bcrypt.compare(currentPassword, user.password);
-    if (!valid) return res.status(401).json({ error: 'La contraseña actual es incorrecta' });
+    if (!valid) {
+      audit('PASSWORD_CHANGE_FAILED', { userId, meta: { reason: 'wrong_current_password' }, req });
+      return res.status(401).json({ error: 'La contraseña actual es incorrecta' });
+    }
 
     const hashed = await bcrypt.hash(newPassword, 10);
     await prisma.user.update({ where: { id: userId }, data: { password: hashed } });
+    audit('PASSWORD_CHANGED', { userId, req });
 
     res.json({ success: true, message: 'Contraseña actualizada correctamente' });
   } catch {
