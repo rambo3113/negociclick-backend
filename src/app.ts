@@ -92,7 +92,7 @@ app.use(helmet({
   xContentTypeOptions: true,        // X-Content-Type-Options: nosniff
   frameguard: { action: 'sameorigin' },  // X-Frame-Options: SAMEORIGIN
   xssFilter: true,                   // X-XSS-Protection: 1; mode=block
-  referrerPolicy: { policy: 'no-referrer-when-downgrade' },
+  referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
   permittedCrossDomainPolicies: false,
   crossOriginEmbedderPolicy: false,  // evita romper integraciones externas (Culqi)
 }));
