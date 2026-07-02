@@ -88,6 +88,7 @@ export const createBookingSchema = z.object({
   businessId: z.string().min(1, 'ID de negocio requerido'),
   date:       z.string().refine(v => !isNaN(Date.parse(v)), { error: 'Fecha inválida' }),
   notes:      safeText(500).optional(),
+  serviceIds: z.array(z.string()).optional(),
 });
 
 // ── Review ────────────────────────────────────────────────────────────────────
