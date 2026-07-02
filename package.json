@@ -37,6 +37,7 @@
     "resend": "^6.16.0",
     "speakeasy": "^2.0.0",
     "stripe": "^22.2.2",
+    "typescript": "^6.0.3",
     "zod": "^4.4.3"
   },
   "devDependencies": {
@@ -49,7 +50,6 @@
     "@types/qrcode": "^1.5.6",
     "@types/speakeasy": "^2.0.10",
     "autocannon": "^8.0.0",
-    "ts-node": "^10.9.2",
-    "typescript": "^6.0.3"
+    "ts-node": "^10.9.2"
   }
 }
