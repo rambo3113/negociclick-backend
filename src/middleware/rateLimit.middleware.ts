@@ -1,11 +1,13 @@
-import rateLimit, { Options } from 'express-rate-limit';
+import rateLimit, { Options, ipKeyGenerator } from 'express-rate-limit';
 import { Request } from 'express';
 
 const skipInTest = (_req: Request) => process.env.NODE_ENV === 'test';
 
+const ip = (req: Request) => ipKeyGenerator(req.ip ?? '');
+
 const base: Partial<Options> = {
   skip: skipInTest,
-  standardHeaders: true,   // devuelve RateLimit-* headers (RFC 6585)
+  standardHeaders: true,
   legacyHeaders: false,
 };
 
@@ -15,9 +17,8 @@ export const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 5,
   keyGenerator: (req: Request) => {
-    // key por email para que bloquee la cuenta, no la IP
     const email = (req.body?.email as string | undefined)?.toLowerCase().trim();
-    return email ? `login:${email}` : req.ip ?? 'unknown';
+    return email ? `login:${email}` : ip(req);
   },
   message: { error: 'Demasiados intentos de inicio de sesión. Intenta en 15 minutos.' },
   skipSuccessfulRequests: true,   // solo cuenta intentos fallidos
@@ -28,7 +29,7 @@ export const registerLimiter = rateLimit({
   ...base,
   windowMs: 60 * 60 * 1000,
   max: 3,
-  keyGenerator: (req: Request) => req.ip ?? 'unknown',
+  keyGenerator: (req: Request) => ip(req),
   message: { error: 'Demasiados registros desde esta dirección. Intenta en 1 hora.' },
 });
 
@@ -37,7 +38,7 @@ export const searchLimiter = rateLimit({
   ...base,
   windowMs: 60 * 1000,
   max: 30,
-  keyGenerator: (req: Request) => req.ip ?? 'unknown',
+  keyGenerator: (req: Request) => ip(req),
   message: { error: 'Demasiadas búsquedas seguidas. Espera un momento e intenta de nuevo.' },
 });
 
@@ -46,7 +47,7 @@ export const paymentLimiter = rateLimit({
   ...base,
   windowMs: 60 * 1000,
   max: 10,
-  keyGenerator: (req: Request) => req.ip ?? 'unknown',
+  keyGenerator: (req: Request) => ip(req),
   message: { error: 'Demasiados intentos de pago. Espera un momento.' },
 });
 
@@ -55,7 +56,7 @@ export const forgotPasswordLimiter = rateLimit({
   ...base,
   windowMs: 60 * 60 * 1000,
   max: 5,
-  keyGenerator: (req: Request) => req.ip ?? 'unknown',
+  keyGenerator: (req: Request) => ip(req),
   message: { error: 'Demasiados intentos de recuperación. Espera una hora antes de volver a intentarlo.' },
 });
 
@@ -64,7 +65,7 @@ export const generalLimiter = rateLimit({
   ...base,
   windowMs: 15 * 60 * 1000,
   max: 100,
-  keyGenerator: (req: Request) => req.ip ?? 'unknown',
+  keyGenerator: (req: Request) => ip(req),
   message: { error: 'Demasiadas solicitudes. Intenta en 15 minutos.' },
   skip: (req: Request) => {
     // Health check y assets estáticos no cuentan
