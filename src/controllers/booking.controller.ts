@@ -27,11 +27,12 @@ function toLimaTimeParts(date: Date): { dayOfWeek: number; hour: number; minute:
 export const createBooking = async (req: Request, res: Response) => {
   try {
     const clientId = (req as any).userId;
-    const { serviceId, date, notes, serviceIds } = req.body as {
+    const { serviceId, date, notes, serviceIds, orderTotal } = req.body as {
       serviceId: string;
       date: string;
       notes?: string;
       serviceIds?: string[];
+      orderTotal?: number;
     };
 
     if (!serviceId || !date) {
@@ -106,13 +107,26 @@ export const createBooking = async (req: Request, res: Response) => {
 
     // Si vienen múltiples serviceIds, sumar precios desde BD (nunca confiar en monto del cliente)
     let totalAmount = Number(service.price);
+    let serviceNamesTag: string | null = null;
     if (serviceIds && serviceIds.length > 1) {
       const extraServices = await prisma.service.findMany({
         where: { id: { in: serviceIds }, isActive: true, businessId: service.businessId },
-        select: { price: true },
+        select: { price: true, name: true },
       });
       totalAmount = extraServices.reduce((s, sv) => s + Number(sv.price), 0);
+      serviceNamesTag = `[SERVICIOS: ${extraServices.map(sv => sv.name).join(', ')}]`;
     }
+
+    // Para pedidos de delivery el frontend calcula el total correcto con cantidades (x2, x3, etc.)
+    // Solo se acepta si las notas contienen la etiqueta [PEDIDO]
+    const isDeliveryOrder = typeof notes === 'string' && notes.startsWith('[PEDIDO]');
+    if (isDeliveryOrder && typeof orderTotal === 'number' && orderTotal > 0) {
+      totalAmount = orderTotal;
+    }
+
+    const finalNotes = serviceNamesTag
+      ? (notes ? `${serviceNamesTag}\n${notes}` : serviceNamesTag)
+      : (notes || null);
 
     const commission   = 0;
     const vendorAmount = totalAmount;
@@ -137,7 +151,7 @@ export const createBooking = async (req: Request, res: Response) => {
             totalAmount,
             commission,
             vendorAmount,
-            notes: notes || null,
+            notes: finalNotes,
             clientId,
             businessId: service.businessId,
             serviceId,
