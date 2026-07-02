@@ -63,11 +63,94 @@ export const getMySubscription = async (req: Request, res: Response) => {
       daysUntilExpiry = Math.ceil(diff / 86_400_000);
     }
 
-    res.json({ success: true, subscription, daysUntilExpiry });
+    res.json({
+      success: true,
+      subscription,
+      daysUntilExpiry,
+      isTrial: (subscription as any).isTrial ?? false,
+    });
 
   } catch (error: any) {
     console.error('Error al obtener suscripción:', error);
     res.status(500).json({ error: 'Error al obtener suscripción' });
+  }
+};
+
+// ============================================
+// TRIAL — 14 días gratis (PRO o PREMIUM)
+// ============================================
+export const activateTrial = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).userId;
+    const { plan } = req.body as { plan: 'PRO' | 'PREMIUM' };
+
+    if (!plan || !['PRO', 'PREMIUM'].includes(plan)) {
+      return res.status(400).json({ error: 'Plan inválido. Elige PRO o PREMIUM.' });
+    }
+
+    // Verificar que no haya usado trial antes
+    const prevTrial = await prisma.subscription.findFirst({
+      where: { userId, isTrial: true },
+    });
+    if (prevTrial) {
+      return res.status(409).json({ error: 'Ya usaste tu trial gratuito. ¡Suscríbete para continuar disfrutando los beneficios!' });
+    }
+
+    // Verificar que esté en plan FREE
+    const activeSub = await prisma.subscription.findFirst({
+      where: { userId, status: 'ACTIVE' },
+    });
+    if (activeSub && (activeSub as any).plan !== 'FREE') {
+      return res.status(409).json({ error: 'Ya tienes un plan de pago activo.' });
+    }
+
+    // Verificar que tiene al menos 1 negocio activo con al menos 1 servicio activo
+    const business = await prisma.business.findFirst({
+      where: { ownerId: userId, isActive: true },
+      include: { services: { where: { isActive: true }, take: 1 } },
+    });
+    if (!business) {
+      return res.status(400).json({ error: 'Primero crea y activa tu negocio para acceder al trial.' });
+    }
+    if (business.services.length === 0) {
+      return res.status(400).json({ error: 'Agrega al menos 1 servicio a tu negocio para activar el trial.' });
+    }
+
+    const { commissionRate, maxServices } = PLANS[plan];
+    const endDate = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
+
+    // Cancelar FREE activo si existe
+    await prisma.subscription.updateMany({
+      where: { userId, status: 'ACTIVE' },
+      data: { status: 'CANCELLED', endDate: new Date() },
+    });
+
+    const subscription = await prisma.subscription.create({
+      data: {
+        plan,
+        status:        'ACTIVE',
+        commissionRate,
+        maxServices,
+        price:         0,
+        isTrial:       true,
+        autoRenew:     false,
+        endDate,
+        userId,
+      },
+    });
+
+    invalidateSubscription(userId);
+
+    res.status(201).json({
+      success: true,
+      message: `¡Trial de 14 días ${plan} activado! Vence el ${endDate.toLocaleDateString('es-PE', { day: '2-digit', month: 'long', year: 'numeric' })}.`,
+      subscription,
+      trialEndsAt: endDate,
+    });
+
+  } catch (error: any) {
+    console.error('Error al activar trial:', error);
+    res.status(500).json({ error: 'Error al activar el trial' });
   }
 };
 

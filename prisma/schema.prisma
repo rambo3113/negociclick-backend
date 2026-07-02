@@ -249,6 +249,7 @@ model Subscription {
   maxServices    Int?
   price          Decimal  @db.Decimal(10, 2)
   culqiChargeId  String?                      // ID del cobro en Culqi para refunds
+  isTrial        Boolean  @default(false)     // true = trial gratuito de 14 días
   startDate      DateTime @default(now())
   endDate        DateTime?
   autoRenew      Boolean  @default(true)

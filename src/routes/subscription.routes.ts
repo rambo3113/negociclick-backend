@@ -8,6 +8,7 @@ import {
   getAllSubscriptions,
   getPlans,
   refundSubscription,
+  activateTrial,
 } from '../controllers/subscription.controller';
 import { authenticate } from '../middleware/auth.middleware';
 import { requireAdmin } from '../middleware/admin.middleware';
@@ -24,6 +25,7 @@ router.use(authenticate);
 router.get('/my', getMySubscription);
 router.get('/history', getSubscriptionHistory);
 router.post('/', subscribe);
+router.post('/trial', activateTrial);
 router.post('/pay', validate(subscriptionSchema), subscribePaid);
 router.delete('/cancel', cancelSubscription);
 
