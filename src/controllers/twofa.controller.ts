@@ -8,6 +8,8 @@ import {
   generateQRCode,
   generateBackupCodes,
   verifyTOTPToken,
+  encryptSecret,
+  decryptSecret,
 } from '../utils/twofa.util';
 import { audit } from '../lib/audit';
 
@@ -73,7 +75,7 @@ export const enable2FA = async (req: Request, res: Response) => {
       where: { id: userId },
       data: {
         twoFactorEnabled: true,
-        twoFactorSecret: secret,
+        twoFactorSecret: encryptSecret(secret),
         twoFactorBackupCodes: hashedBackupCodes,
         twoFactorVerifiedAt: new Date(),
       },
@@ -118,7 +120,7 @@ export const verifyLogin2FA = async (req: Request, res: Response) => {
 
     // Intentar TOTP (6 dígitos numéricos)
     if (/^\d{6}$/.test(code)) {
-      const isValid = verifyTOTPToken(user.twoFactorSecret, code);
+      const isValid = verifyTOTPToken(decryptSecret(user.twoFactorSecret), code);
       if (isValid) {
         return issueFullTokens(user, res, req);
       }
@@ -246,7 +248,7 @@ export const regenerateBackupCodes = async (req: Request, res: Response) => {
       return res.status(400).json({ error: '2FA no está habilitado' });
     }
 
-    const isValid = verifyTOTPToken(user.twoFactorSecret, totp);
+    const isValid = verifyTOTPToken(decryptSecret(user.twoFactorSecret), totp);
     if (!isValid) return res.status(401).json({ error: 'Código TOTP incorrecto' });
 
     const newCodes = generateBackupCodes();
