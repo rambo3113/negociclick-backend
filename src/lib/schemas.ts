@@ -23,14 +23,13 @@ const peruPhone = z.string().refine(
   { error: 'Teléfono inválido. Usa formato +51XXXXXXXXX o 9XXXXXXXX (9 dígitos)' },
 );
 
-// Contraseña segura: ≥12 chars, 1 mayúscula, 1 número, 1 especial
+// Contraseña segura: ≥8 chars, 1 mayúscula, 1 número
 const strongPassword = z
   .string()
-  .min(12, 'La contraseña debe tener al menos 12 caracteres')
+  .min(8, 'La contraseña debe tener al menos 8 caracteres')
   .max(128, 'La contraseña no puede superar 128 caracteres')
-  .refine(p => /[A-Z]/.test(p),                                  { error: 'La contraseña debe incluir al menos una mayúscula' })
-  .refine(p => /[0-9]/.test(p),                                  { error: 'La contraseña debe incluir al menos un número' })
-  .refine(p => /[!@#$%^&*()\-_=+\[\]{};:'"\\|,.<>/?]/.test(p), { error: 'La contraseña debe incluir al menos un carácter especial (!@#$%^&*...)' });
+  .refine(p => /[A-Z]/.test(p), { error: 'La contraseña debe incluir al menos una mayúscula' })
+  .refine(p => /[0-9]/.test(p), { error: 'La contraseña debe incluir al menos un número' });
 
 // ── Auth ─────────────────────────────────────────────────────────────────────
 export const registerSchema = z.object({
