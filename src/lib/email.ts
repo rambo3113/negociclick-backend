@@ -1,7 +1,7 @@
 import { Resend } from 'resend';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
-const FROM = process.env.RESEND_FROM ?? 'NegociClick <onboarding@resend.dev>';
+const FROM = process.env.RESEND_FROM ?? 'NegociClick <notificaciones@negociclick.com>';
 const APP_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
 
 type OrderMode = 'APPOINTMENT' | 'ORDER';
