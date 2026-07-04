@@ -160,6 +160,7 @@ export const chargePayment = async (req: Request, res: Response) => {
             vendorAmount: Number(payment.vendorAmount),
             commission:   Number(payment.commissionAmount),
             orderMode:    fullBooking.business.orderMode as 'APPOINTMENT' | 'ORDER',
+            notes:        fullBooking.notes,
           }).catch(() => {});
         }
       }

@@ -809,6 +809,7 @@ export const markAsPaid = async (req: Request, res: Response) => {
         commission:   Number(booking.commission),
         vendorAmount: Number(booking.vendorAmount),
         orderMode:    booking.business.orderMode as 'APPOINTMENT' | 'ORDER',
+        notes:        booking.notes,
       }).catch(() => {});
     }
 

@@ -232,10 +232,12 @@ export async function sendPaymentReceivedToVendor(opts: {
   vendorAmount: number;
   commission: number;
   orderMode?: OrderMode;
+  notes?: string | null;
 }) {
-  const dateLabel = opts.orderMode === 'ORDER' ? 'Fecha de entrega' : 'Fecha cita';
-  const dateStr = opts.orderMode === 'ORDER' ? dateOnly(opts.date) : dateTime(opts.date);
-  const itemLabel = opts.orderMode === 'ORDER' ? 'Pedido' : 'Servicio';
+  const isOrder = opts.orderMode === 'ORDER';
+  const dateLabel = isOrder ? 'Fecha de entrega' : 'Fecha cita';
+  const dateStr = isOrder ? dateOnly(opts.date) : dateTime(opts.date);
+  const order = isOrder ? parseOrderNotes(opts.notes) : null;
 
   await send(opts.vendorEmail, `💰 Pago recibido — ${opts.serviceName}`, base(`
     <div style="text-align:center;margin-bottom:24px;">
@@ -243,9 +245,12 @@ export async function sendPaymentReceivedToVendor(opts: {
     </div>
     <h2 style="margin:0 0 8px;font-size:20px;color:#111827;text-align:center;font-family:Arial,Helvetica,sans-serif;">¡Pago recibido!</h2>
     <p style="margin:0 0 24px;color:#6B7280;font-size:14px;text-align:center;font-family:Arial,Helvetica,sans-serif;">Se acaba de procesar un pago en <strong>${opts.businessName}</strong>.</p>
+    ${order && order.items.length > 0
+      ? `<p style="margin:0 0 6px;font-size:12px;font-weight:700;color:#6B7280;text-transform:uppercase;letter-spacing:0.04em;font-family:Arial,Helvetica,sans-serif;">Pedido</p>${itemsTable(order.items)}`
+      : ''}
     ${dataTable(
       dataRow('Cliente', opts.clientName) +
-      dataRow(itemLabel, opts.serviceName) +
+      (order && order.items.length > 0 ? '' : dataRow(isOrder ? 'Pedido' : 'Servicio', opts.serviceName)) +
       dataRow(dateLabel, dateStr) +
       dataRow('Total cobrado', `S/ ${opts.amount.toFixed(2)}`) +
       dataRow('Comisión NegociClick', `− S/ ${opts.commission.toFixed(2)}`, { valueColor: '#EF4444' }) +
