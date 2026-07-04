@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { Prisma } from '@prisma/client';
 import prisma from '../lib/prisma';
-import { sendBookingCreatedToVendor, sendBookingCancelledToClient, sendBookingCancelledToVendor, sendPaymentReceivedToVendor, sendReviewReminderToClient, sendBookingRescheduledToVendor } from '../lib/email';
+import { sendBookingCreatedToVendor, sendBookingCancelledToClient, sendBookingCancelledToVendor, sendPaymentReceivedToVendor, sendReviewReminderToClient, sendBookingRescheduledToVendor, sendOrderStatusUpdateToClient } from '../lib/email';
 
 // Extrae hora/minuto/día de semana de un Date en zona horaria de Lima (UTC-5, sin DST)
 function toLimaTimeParts(date: Date): { dayOfWeek: number; hour: number; minute: number } {
@@ -181,7 +181,7 @@ export const createBooking = async (req: Request, res: Response) => {
           },
           include: {
             service:  { select: { name: true, price: true, duration: true } },
-            business: { select: { name: true, address: true, city: true, phone: true } },
+            business: { select: { name: true, address: true, city: true, phone: true, orderMode: true } },
             client:   { select: { name: true, email: true, phone: true } },
           },
         });
@@ -204,6 +204,9 @@ export const createBooking = async (req: Request, res: Response) => {
         businessName: booking.business.name,
         date: booking.date,
         amount: Number(booking.totalAmount),
+        orderMode: booking.business.orderMode as 'APPOINTMENT' | 'ORDER',
+        notes: booking.notes,
+        deliveryAddress: booking.deliveryAddress,
       }).catch(() => {});
     }
 
@@ -452,6 +455,7 @@ export const updateBookingStatus = async (req: Request, res: Response) => {
         clientName:   booking.client.name,
         serviceName:  booking.service.name,
         businessName: booking.business.name,
+        orderMode:    booking.business.orderMode as 'APPOINTMENT' | 'ORDER',
       }).catch(() => {});
     }
 
@@ -462,6 +466,17 @@ export const updateBookingStatus = async (req: Request, res: Response) => {
         clientName:   booking.client.name,
         serviceName:  booking.service.name,
         businessName: booking.business.name,
+        orderMode:    booking.business.orderMode as 'APPOINTMENT' | 'ORDER',
+      }).catch(() => {});
+    }
+
+    // Pedidos (negocios ORDER): avisar al cliente cuando pasa a preparación o se entrega
+    if (isOrderMode && (status === 'PREPARING' || status === 'DELIVERED')) {
+      sendOrderStatusUpdateToClient({
+        clientEmail:  booking.client.email,
+        clientName:   booking.client.name,
+        businessName: booking.business.name,
+        status,
       }).catch(() => {});
     }
 
@@ -504,7 +519,7 @@ export const rescheduleBooking = async (req: Request, res: Response) => {
     const booking = await prisma.booking.findUnique({
       where: { id },
       include: {
-        service: { include: { business: { select: { ownerId: true, name: true } } } },
+        service: { include: { business: { select: { ownerId: true, name: true, orderMode: true } } } },
         client:  { select: { name: true } },
       },
     });
@@ -594,6 +609,7 @@ export const rescheduleBooking = async (req: Request, res: Response) => {
         businessName: booking.service.business.name,
         oldDate,
         newDate,
+        orderMode:    booking.service.business.orderMode as 'APPOINTMENT' | 'ORDER',
       }).catch(() => {});
     }
 
@@ -693,6 +709,7 @@ export const cancelBooking = async (req: Request, res: Response) => {
       clientName:   updatedBooking.client.name,
       serviceName:  updatedBooking.service.name,
       businessName: updatedBooking.business.name,
+      orderMode:    booking.business.orderMode as 'APPOINTMENT' | 'ORDER',
     }).catch(() => {});
 
     // Notificar al vendor que el cliente canceló
@@ -706,6 +723,7 @@ export const cancelBooking = async (req: Request, res: Response) => {
           serviceName:  booking.service.name,
           businessName: booking.business.name,
           date:         booking.date,
+          orderMode:    booking.business.orderMode as 'APPOINTMENT' | 'ORDER',
         }).catch(() => {});
       }).catch(() => {});
 
@@ -736,7 +754,7 @@ export const markAsPaid = async (req: Request, res: Response) => {
     const booking = await prisma.booking.findUnique({
       where: { id },
       include: {
-        business: { select: { id: true, name: true, ownerId: true } },
+        business: { select: { id: true, name: true, ownerId: true, orderMode: true } },
         service:  { select: { name: true } },
         client:   { select: { name: true, email: true } },
         payment:  true,
@@ -790,6 +808,7 @@ export const markAsPaid = async (req: Request, res: Response) => {
         amount:       Number(booking.totalAmount),
         commission:   Number(booking.commission),
         vendorAmount: Number(booking.vendorAmount),
+        orderMode:    booking.business.orderMode as 'APPOINTMENT' | 'ORDER',
       }).catch(() => {});
     }
 
@@ -798,6 +817,7 @@ export const markAsPaid = async (req: Request, res: Response) => {
       clientName:   booking.client.name,
       serviceName:  booking.service.name,
       businessName: booking.business.name,
+      orderMode:    booking.business.orderMode as 'APPOINTMENT' | 'ORDER',
     }).catch(() => {});
 
     res.json({ success: true, message: 'Reserva marcada como pagada en efectivo' });

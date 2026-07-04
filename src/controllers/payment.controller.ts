@@ -121,7 +121,7 @@ export const chargePayment = async (req: Request, res: Response) => {
       include: {
         client:   { select: { name: true, email: true } },
         service:  { select: { name: true } },
-        business: { select: { name: true, phone: true } },
+        business: { select: { name: true, phone: true, orderMode: true } },
       },
     });
     if (fullBooking) {
@@ -133,6 +133,9 @@ export const chargePayment = async (req: Request, res: Response) => {
         businessPhone: fullBooking.business.phone,
         date:          fullBooking.date,
         amount:        Number(payment.amount),
+        orderMode:     fullBooking.business.orderMode as 'APPOINTMENT' | 'ORDER',
+        notes:         fullBooking.notes,
+        deliveryAddress: fullBooking.deliveryAddress,
       }).catch(() => {});
 
       // Notificar al vendor — buscamos el dueño por businessId del booking
@@ -156,6 +159,7 @@ export const chargePayment = async (req: Request, res: Response) => {
             amount:       Number(payment.amount),
             vendorAmount: Number(payment.vendorAmount),
             commission:   Number(payment.commissionAmount),
+            orderMode:    fullBooking.business.orderMode as 'APPOINTMENT' | 'ORDER',
           }).catch(() => {});
         }
       }

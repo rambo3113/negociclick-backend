@@ -14,6 +14,7 @@ export function startAppointmentReminders() {
         where: {
           status: { in: ['PENDING', 'CONFIRMED'] },
           date: { gte: from, lte: to },
+          business: { orderMode: 'APPOINTMENT' }, // los pedidos (ORDER) no usan recordatorio de "cita"
         },
         include: {
           client:   { select: { email: true, name: true } },
