@@ -235,8 +235,9 @@ export const getMyBookings = async (req: Request, res: Response) => {
         where: { clientId, ...(status ? { status } : {}) },
         include: {
           service:  { select: { name: true, price: true, duration: true } },
-          business: { select: { name: true, address: true, city: true, phone: true, ownerId: true } },
+          business: { select: { name: true, address: true, city: true, phone: true, ownerId: true, orderMode: true } },
           review:   { select: { id: true, rating: true, comment: true } },
+          payment:  { select: { status: true } },
         },
         orderBy: { date: 'desc' },
         skip,
@@ -302,7 +303,8 @@ export const getBookingsByBusiness = async (req: Request, res: Response) => {
       include: {
         service: { select: { name: true, price: true, duration: true } },
         client: { select: { name: true, email: true, phone: true } },
-        review: { select: { id: true, rating: true, comment: true } }
+        review: { select: { id: true, rating: true, comment: true } },
+        payment: { select: { status: true } },
       },
       orderBy: { date: 'desc' }
     });
