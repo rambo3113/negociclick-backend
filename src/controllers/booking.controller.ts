@@ -27,12 +27,13 @@ function toLimaTimeParts(date: Date): { dayOfWeek: number; hour: number; minute:
 export const createBooking = async (req: Request, res: Response) => {
   try {
     const clientId = (req as any).userId;
-    const { serviceId, date, notes, serviceIds, orderTotal } = req.body as {
+    const { serviceId, date, notes, serviceIds, orderTotal, deliveryAddress } = req.body as {
       serviceId: string;
       date: string;
       notes?: string;
       serviceIds?: string[];
       orderTotal?: number;
+      deliveryAddress?: string;
     };
 
     if (!serviceId || !date) {
@@ -42,12 +43,6 @@ export const createBooking = async (req: Request, res: Response) => {
     const bookingDate = new Date(date);
     if (isNaN(bookingDate.getTime())) {
       return res.status(400).json({ error: 'Fecha inválida' });
-    }
-    if (bookingDate < new Date()) {
-      return res.status(400).json({ error: 'No puedes reservar una cita en el pasado' });
-    }
-    if (bookingDate > new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)) {
-      return res.status(400).json({ error: 'No puedes reservar con más de 1 año de anticipación' });
     }
 
     // Obtener el servicio y su negocio
@@ -64,6 +59,30 @@ export const createBooking = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'El negocio no está disponible' });
     }
 
+    const isOrderMode = service.business.orderMode === 'ORDER';
+
+    if (isOrderMode) {
+      // Negocios de pedido (repostería, flores, catering...): solo importa el día de entrega
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const deliveryDay = new Date(bookingDate);
+      deliveryDay.setHours(0, 0, 0, 0);
+      if (deliveryDay < today) {
+        return res.status(400).json({ error: 'La fecha de entrega no puede ser anterior a hoy' });
+      }
+      if (!deliveryAddress || !deliveryAddress.trim()) {
+        return res.status(400).json({ error: 'La dirección de entrega es obligatoria' });
+      }
+    } else {
+      if (bookingDate < new Date()) {
+        return res.status(400).json({ error: 'No puedes reservar una cita en el pasado' });
+      }
+    }
+
+    if (bookingDate > new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)) {
+      return res.status(400).json({ error: 'No puedes reservar con más de 1 año de anticipación' });
+    }
+
     // Verificar que el negocio no tenga bloqueada esa fecha (vacaciones, feriados, etc.)
     const blocked = await prisma.availabilityBlock.findFirst({
       where: {
@@ -77,24 +96,26 @@ export const createBooking = async (req: Request, res: Response) => {
       return res.status(409).json({ error: `El negocio no está disponible en esa fecha${reason}` });
     }
 
-    // Verificar horarios de atención del negocio
-    const { dayOfWeek, hour: bkHour, minute: bkMinute } = toLimaTimeParts(bookingDate);
-    const businessHrs = await prisma.businessHours.findUnique({
-      where: { businessId_dayOfWeek: { businessId: service.businessId, dayOfWeek } },
-    });
-    if (businessHrs) {
-      if (businessHrs.isClosed) {
-        return res.status(400).json({ error: 'El negocio está cerrado ese día' });
-      }
-      const [openH, openM]   = businessHrs.openTime.split(':').map(Number);
-      const [closeH, closeM] = businessHrs.closeTime.split(':').map(Number);
-      const bkMinutes    = bkHour * 60 + bkMinute;
-      const openMinutes  = openH  * 60 + openM;
-      const closeMinutes = closeH * 60 + closeM;
-      if (bkMinutes < openMinutes || bkMinutes >= closeMinutes) {
-        return res.status(400).json({
-          error: `El negocio atiende de ${businessHrs.openTime} a ${businessHrs.closeTime}`,
-        });
+    // Verificar horarios de atención del negocio (solo aplica a citas con hora fija)
+    if (!isOrderMode) {
+      const { dayOfWeek, hour: bkHour, minute: bkMinute } = toLimaTimeParts(bookingDate);
+      const businessHrs = await prisma.businessHours.findUnique({
+        where: { businessId_dayOfWeek: { businessId: service.businessId, dayOfWeek } },
+      });
+      if (businessHrs) {
+        if (businessHrs.isClosed) {
+          return res.status(400).json({ error: 'El negocio está cerrado ese día' });
+        }
+        const [openH, openM]   = businessHrs.openTime.split(':').map(Number);
+        const [closeH, closeM] = businessHrs.closeTime.split(':').map(Number);
+        const bkMinutes    = bkHour * 60 + bkMinute;
+        const openMinutes  = openH  * 60 + openM;
+        const closeMinutes = closeH * 60 + closeM;
+        if (bkMinutes < openMinutes || bkMinutes >= closeMinutes) {
+          return res.status(400).json({
+            error: `El negocio atiende de ${businessHrs.openTime} a ${businessHrs.closeTime}`,
+          });
+        }
       }
     }
 
@@ -117,10 +138,8 @@ export const createBooking = async (req: Request, res: Response) => {
       serviceNamesTag = `[SERVICIOS: ${extraServices.map(sv => sv.name).join(', ')}]`;
     }
 
-    // Para pedidos de delivery el frontend calcula el total correcto con cantidades (x2, x3, etc.)
-    // Solo se acepta si las notas contienen la etiqueta [PEDIDO]
-    const isDeliveryOrder = typeof notes === 'string' && notes.startsWith('[PEDIDO]');
-    if (isDeliveryOrder && typeof orderTotal === 'number' && orderTotal > 0) {
+    // Para pedidos (negocios ORDER) el frontend calcula el total correcto con cantidades (x2, x3, etc.)
+    if (isOrderMode && typeof orderTotal === 'number' && orderTotal > 0) {
       totalAmount = orderTotal;
     }
 
@@ -132,18 +151,21 @@ export const createBooking = async (req: Request, res: Response) => {
     const vendorAmount = totalAmount;
 
     // Transacción serializable: el chequeo de conflicto y la creación son atómicos
+    // Los negocios ORDER no tienen slot de hora, así que no aplica el chequeo de conflicto
     let booking;
     try {
       booking = await prisma.$transaction(async (tx) => {
-        const conflicting = await tx.booking.findFirst({
-          where: {
-            serviceId,
-            status: { in: ['PENDING', 'CONFIRMED'] },
-            date: { lt: requestedEnd },
-            AND: { date: { gte: new Date(bookingDate.getTime() - durationMs) } },
-          },
-        });
-        if (conflicting) throw Object.assign(new Error(), { isSlotConflict: true });
+        if (!isOrderMode) {
+          const conflicting = await tx.booking.findFirst({
+            where: {
+              serviceId,
+              status: { in: ['PENDING', 'CONFIRMED'] },
+              date: { lt: requestedEnd },
+              AND: { date: { gte: new Date(bookingDate.getTime() - durationMs) } },
+            },
+          });
+          if (conflicting) throw Object.assign(new Error(), { isSlotConflict: true });
+        }
 
         return tx.booking.create({
           data: {
@@ -152,6 +174,7 @@ export const createBooking = async (req: Request, res: Response) => {
             commission,
             vendorAmount,
             notes: finalNotes,
+            deliveryAddress: isOrderMode ? deliveryAddress!.trim() : null,
             clientId,
             businessId: service.businessId,
             serviceId,
@@ -340,13 +363,6 @@ export const updateBookingStatus = async (req: Request, res: Response) => {
     const userId = (req as any).userId;
     const { status } = req.body as { status: string };
 
-    const VALID_STATUSES = ['CONFIRMED', 'COMPLETED', 'CANCELLED'];
-    if (!status || !VALID_STATUSES.includes(status)) {
-      return res.status(400).json({
-        error: `Estado inválido. Valores permitidos: ${VALID_STATUSES.join(', ')}`
-      });
-    }
-
     const booking = await prisma.booking.findUnique({
       where: { id },
       include: {
@@ -361,17 +377,36 @@ export const updateBookingStatus = async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Reserva no encontrada' });
     }
 
+    const isOrderMode = booking.business.orderMode === 'ORDER';
+
+    // Máquina de estados: transiciones válidas según el tipo de negocio
+    const TRANSITIONS: Record<string, string[]> = isOrderMode
+      ? {
+          PENDING:   ['PREPARING', 'CANCELLED'],
+          PREPARING: ['DELIVERED', 'CANCELLED'],
+          DELIVERED: [],
+          CANCELLED: [],
+        }
+      : {
+          PENDING:   ['CONFIRMED', 'CANCELLED'],
+          CONFIRMED: ['COMPLETED', 'CANCELLED'],
+          COMPLETED: [],
+          CANCELLED: [],
+        };
+
+    const VALID_STATUSES = isOrderMode
+      ? ['PREPARING', 'DELIVERED', 'CANCELLED']
+      : ['CONFIRMED', 'COMPLETED', 'CANCELLED'];
+    if (!status || !VALID_STATUSES.includes(status)) {
+      return res.status(400).json({
+        error: `Estado inválido. Valores permitidos: ${VALID_STATUSES.join(', ')}`
+      });
+    }
+
     if (booking.business.ownerId !== userId && (req as any).userRole !== 'ADMIN') {
       return res.status(403).json({ error: 'Solo el dueño del negocio puede cambiar el estado' });
     }
 
-    // Máquina de estados: solo transiciones válidas
-    const TRANSITIONS: Record<string, string[]> = {
-      PENDING:   ['CONFIRMED', 'CANCELLED'],
-      CONFIRMED: ['COMPLETED', 'CANCELLED'],
-      COMPLETED: [],
-      CANCELLED: [],
-    };
     if (!TRANSITIONS[booking.status]?.includes(status)) {
       return res.status(400).json({
         error: `No se puede pasar de ${booking.status} a ${status}`
@@ -586,7 +621,7 @@ export const cancelBooking = async (req: Request, res: Response) => {
         payment:  true,
         client:   { select: { name: true } },
         service:  { select: { name: true } },
-        business: { select: { name: true, ownerId: true } },
+        business: { select: { name: true, ownerId: true, orderMode: true } },
       },
     });
 
@@ -598,20 +633,22 @@ export const cancelBooking = async (req: Request, res: Response) => {
       return res.status(403).json({ error: 'Solo puedes cancelar tus propias reservas' });
     }
 
-    if (booking.status === 'COMPLETED') {
-      return res.status(400).json({ error: 'No puedes cancelar una reserva completada' });
+    if (booking.status === 'COMPLETED' || booking.status === 'DELIVERED') {
+      return res.status(400).json({ error: 'No puedes cancelar un pedido/reserva ya finalizado' });
     }
 
     if (booking.status === 'CANCELLED') {
       return res.status(400).json({ error: 'La reserva ya está cancelada' });
     }
 
-    // Política de cancelación: mínimo 2 horas de anticipación
-    const hoursUntil = (booking.date.getTime() - Date.now()) / (1000 * 60 * 60);
-    if (hoursUntil >= 0 && hoursUntil < 2) {
-      return res.status(400).json({
-        error: 'No se puede cancelar con menos de 2 horas de anticipación. Contacta al negocio directamente.',
-      });
+    // Política de cancelación: mínimo 2 horas de anticipación (solo aplica a citas con hora fija)
+    if (booking.business.orderMode !== 'ORDER') {
+      const hoursUntil = (booking.date.getTime() - Date.now()) / (1000 * 60 * 60);
+      if (hoursUntil >= 0 && hoursUntil < 2) {
+        return res.status(400).json({
+          error: 'No se puede cancelar con menos de 2 horas de anticipación. Contacta al negocio directamente.',
+        });
+      }
     }
 
     // Si hay un pago confirmado, reembolsar en Culqi antes de cancelar

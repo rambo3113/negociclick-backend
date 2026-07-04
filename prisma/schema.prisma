@@ -69,11 +69,17 @@ model PasswordResetToken {
   @@map("password_reset_tokens")
 }
 
+enum BusinessOrderMode {
+  APPOINTMENT
+  ORDER
+}
+
 model Business {
   id           String   @id @default(cuid())
   name         String
   description  String?
   category     String
+  orderMode    BusinessOrderMode @default(APPOINTMENT)
   address      String
   city         String
   latitude     Float?
@@ -194,6 +200,7 @@ model Booking {
   commission   Decimal  @db.Decimal(10, 2)
   vendorAmount Decimal  @db.Decimal(10, 2)
   notes        String?
+  deliveryAddress String? // solo para negocios ORDER (pedidos con entrega)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 

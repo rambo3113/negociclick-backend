@@ -11,6 +11,15 @@ import { runAsync } from '../lib/asyncTask';
 // ============================================
 // 1. CREAR UN NEGOCIO
 // ============================================
+// Categorías de "pedido de producto" (repostería, flores...) vs. citas con agenda
+const ORDER_CATEGORIES = new Set([
+  'REPOSTERIA',
+  'FLORES',
+  'CATERING',
+  'TEJIDOS_CROCHET',
+  'DECORACION_EVENTOS',
+]);
+
 export const createBusiness = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).userId;
@@ -72,6 +81,7 @@ export const createBusiness = async (req: Request, res: Response) => {
         description: description || null,
         slogan: slogan || null,
         category,
+        orderMode: ORDER_CATEGORIES.has(category) ? 'ORDER' : 'APPOINTMENT',
         address,
         city,
         latitude: latitude ? parseFloat(latitude) : null,
@@ -367,6 +377,7 @@ export const updateBusiness = async (req: Request, res: Response) => {
         name: name || undefined,
         description: description || undefined,
         category: category || undefined,
+        orderMode: category ? (ORDER_CATEGORIES.has(category) ? 'ORDER' : 'APPOINTMENT') : undefined,
         address: address || undefined,
         city: city || undefined,
         latitude: latitude ? parseFloat(latitude) : undefined,

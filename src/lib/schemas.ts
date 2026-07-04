@@ -90,6 +90,7 @@ export const createBookingSchema = z.object({
   notes:      safeText(500).optional(),
   serviceIds:  z.array(z.string()).optional(),
   orderTotal:  z.coerce.number().positive().optional(),
+  deliveryAddress: safeText(300).optional(),
 });
 
 // ── Review ────────────────────────────────────────────────────────────────────
