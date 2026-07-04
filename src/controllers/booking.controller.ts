@@ -388,6 +388,7 @@ export const updateBookingStatus = async (req: Request, res: Response) => {
     const TRANSITIONS: Record<string, string[]> = isOrderMode
       ? {
           PENDING:   ['PREPARING', 'CANCELLED'],
+          CONFIRMED: ['PREPARING', 'CANCELLED'], // pedido pagado (Culqi) en negocios PREMIUM
           PREPARING: ['DELIVERED', 'CANCELLED'],
           DELIVERED: [],
           CANCELLED: [],
