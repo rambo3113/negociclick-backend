@@ -62,12 +62,11 @@ export const createBooking = async (req: Request, res: Response) => {
     const isOrderMode = service.business.orderMode === 'ORDER';
 
     if (isOrderMode) {
-      // Negocios de pedido (repostería, flores, catering...): solo importa el día de entrega
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const deliveryDay = new Date(bookingDate);
-      deliveryDay.setHours(0, 0, 0, 0);
-      if (deliveryDay < today) {
+      // Negocios de pedido (repostería, flores, catering...): solo importa el día de entrega.
+      // Comparamos strings YYYY-MM-DD en zona Lima (no setHours/local del servidor, que en
+      // producción suele ser UTC y corría la fecha un día para horas nocturnas en Perú).
+      const limaDateStr = (d: Date) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Lima' }).format(d);
+      if (limaDateStr(bookingDate) < limaDateStr(new Date())) {
         return res.status(400).json({ error: 'La fecha de entrega no puede ser anterior a hoy' });
       }
       if (!deliveryAddress || !deliveryAddress.trim()) {
