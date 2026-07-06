@@ -3,6 +3,7 @@ import prisma from '../lib/prisma';
 import { uploadToCloudinary, deleteFromCloudinary, extractPublicId } from '../lib/cloudinary';
 import { cacheGet, cacheSet, cacheKey, TTL, invalidateServices } from '../lib/cache';
 import { runAsync } from '../lib/asyncTask';
+import { verifyToken } from '../utils/jwt.util';
 
 const VALID_CATEGORIES = [
   'BARBERIA','SPA','SALON_BELLEZA','TIENDA_CELULARES','VETERINARIA','REPOSTERIA',
@@ -116,22 +117,38 @@ export const getServicesByBusiness = async (req: Request, res: Response) => {
   try {
     const businessId = req.params.businessId as string;
 
-    const svcCacheKey = cacheKey.services(businessId);
-    const cached = cacheGet<object>(svcCacheKey);
-    if (cached) return res.json(cached);
-
     const business = await prisma.business.findUnique({ where: { id: businessId } });
     if (!business) {
       return res.status(404).json({ error: 'Negocio no encontrado' });
     }
 
+    // Endpoint público, pero si el dueño del negocio (o un admin) llama autenticado,
+    // también le mostramos los servicios inactivos — si no, un servicio desactivado
+    // desde el dashboard desaparecería sin forma de volver a activarlo.
+    let isOwner = false;
+    const authHeader = req.headers.authorization;
+    if (authHeader?.startsWith('Bearer ')) {
+      try {
+        const decoded = verifyToken(authHeader.split(' ')[1]) as any;
+        isOwner = decoded.userId === business.ownerId || decoded.role === 'ADMIN';
+      } catch {
+        // Token ausente/inválido: se trata como visitante público.
+      }
+    }
+
+    const svcCacheKey = cacheKey.services(businessId);
+    if (!isOwner) {
+      const cached = cacheGet<object>(svcCacheKey);
+      if (cached) return res.json(cached);
+    }
+
     const services = await prisma.service.findMany({
-      where: { businessId, isActive: true },
+      where: isOwner ? { businessId } : { businessId, isActive: true },
       orderBy: { createdAt: 'desc' }
     });
 
     const payload = { success: true, count: services.length, services };
-    cacheSet(svcCacheKey, payload, TTL.SERVICES);
+    if (!isOwner) cacheSet(svcCacheKey, payload, TTL.SERVICES);
     res.json(payload);
 
   } catch (error: any) {
@@ -203,12 +220,27 @@ export const updateService = async (req: Request, res: Response) => {
       return res.status(403).json({ error: 'No tienes permiso para actualizar este servicio' });
     }
 
+    let parsedPrice: number | undefined;
+    if (name !== undefined) {
+      if (!name.trim()) return res.status(400).json({ error: 'El nombre del servicio no puede estar vacío' });
+      if (name.length > 100) return res.status(400).json({ error: 'El nombre no puede superar los 100 caracteres' });
+    }
+    if (description !== undefined && description !== null && description.length > 500) {
+      return res.status(400).json({ error: 'La descripción no puede superar los 500 caracteres' });
+    }
+    if (price !== undefined) {
+      parsedPrice = parseFloat(String(price));
+      if (isNaN(parsedPrice) || parsedPrice <= 0) {
+        return res.status(400).json({ error: 'El precio debe ser mayor a 0' });
+      }
+    }
+
     const updatedService = await prisma.service.update({
       where: { id },
       data: {
-        name: name || undefined,
-        description: description || undefined,
-        price: price ? parseFloat(String(price)) : undefined,
+        name: name !== undefined ? name.trim() : undefined,
+        description: description !== undefined ? description : undefined,
+        price: parsedPrice,
         duration: duration ? parseInt(String(duration)) : undefined,
         category: category || undefined,
         isActive: isActive !== undefined ? isActive : undefined
