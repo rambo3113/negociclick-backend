@@ -930,7 +930,7 @@ export const getAgenda = async (req: Request, res: Response) => {
       where: {
         businessId,
         date: { gte: dayStartUTC, lt: dayEndUTC },
-        status: { in: ['PENDING', 'CONFIRMED', 'COMPLETED'] },
+        status: { in: ['PENDING', 'CONFIRMED', 'PREPARING', 'COMPLETED', 'DELIVERED'] },
       },
       include: {
         service: { select: { name: true, duration: true, price: true } },
@@ -941,14 +941,15 @@ export const getAgenda = async (req: Request, res: Response) => {
     });
 
     const result = bookings.map(b => ({
-      id:          b.id,
-      date:        b.date,
-      status:      b.status,
-      totalAmount: Number(b.totalAmount),
-      notes:       b.notes,
-      service:     { name: b.service.name, duration: b.service.duration ?? 60, price: Number(b.service.price) },
-      client:      { name: b.client.name, phone: b.client.phone, email: b.client.email },
-      payment:     b.payment ? { status: b.payment.status, provider: b.payment.provider } : null,
+      id:              b.id,
+      date:            b.date,
+      status:          b.status,
+      totalAmount:     Number(b.totalAmount),
+      notes:           b.notes,
+      deliveryAddress: b.deliveryAddress ?? null,
+      service:         { name: b.service.name, duration: b.service.duration ?? 60, price: Number(b.service.price) },
+      client:          { name: b.client.name, phone: b.client.phone, email: b.client.email },
+      payment:         b.payment ? { status: b.payment.status, provider: b.payment.provider } : null,
     }));
 
     res.json({ success: true, date: targetDate, bookings: result });
