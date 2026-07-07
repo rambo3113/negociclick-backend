@@ -40,15 +40,15 @@ NegociClick es una plataforma donde los clientes pueden encontrar, comparar y re
 | Plan | Precio | Servicios | Beneficios |
 |------|--------|-----------|------------|
 | FREE | S/ 0/mes | Hasta 5 servicios | Perfil básico |
-| PRO | S/ 29.99/mes | Hasta 15 servicios | Fotos de servicios, badge verificado, avatar del dueño |
-| PREMIUM | S/ 79.99/mes | Ilimitados | Todo PRO + máxima visibilidad |
+| PRO | S/ 29.99/mes | Ilimitados | Fotos de servicios, badge verificado, avatar del dueño |
+| PREMIUM | S/ 59.99/mes | Ilimitados | Todo PRO + máxima visibilidad |
 
 ### Períodos disponibles:
 - PRO mensual: S/ 29.99
 - PRO 3 meses: S/ 80.97 (ahorro S/ 9)
 - PRO 6 meses: S/ 143.94 (ahorro S/ 36)
-- PREMIUM mensual: S/ 79.99
-- PREMIUM anual: S/ 767.88 (ahorro S/ 192)
+- PREMIUM mensual: S/ 59.99
+- PREMIUM anual: S/ 575.88 (ahorro S/ 144)
 
 Los clientes NO pagan suscripción. Es completamente gratis para reservar servicios.
 
@@ -87,7 +87,7 @@ Los clientes NO pagan suscripción. Es completamente gratis para reservar servic
 
 ### Límites por plan:
 - FREE: 5 servicios máximo
-- PRO: 15 servicios máximo
+- PRO: servicios ilimitados
 - PREMIUM: servicios ilimitados
 
 ## SOPORTE

@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import prisma from '../lib/prisma';
 import { cacheGet, cacheSet, cacheKey, TTL } from '../lib/cache';
 
-const PLAN_LIMITS: Record<string, number> = { FREE: 5, PRO: 15, PREMIUM: Infinity };
+const PLAN_LIMITS: Record<string, number> = { FREE: 5, PRO: Infinity, PREMIUM: Infinity };
 
 type CachedSub = { plan: string; endDate: Date | null };
 

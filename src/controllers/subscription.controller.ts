@@ -19,8 +19,8 @@ async function culqiRequest(path: string, body: object) {
 
 const PLANS: Record<string, { price: number; commissionRate: number; maxServices: number | null }> = {
   FREE:    { price: 0,     commissionRate: 0, maxServices: 5    },
-  PRO:     { price: 29.99, commissionRate: 0, maxServices: 15   },
-  PREMIUM: { price: 79.99, commissionRate: 0, maxServices: null }
+  PRO:     { price: 29.99, commissionRate: 0, maxServices: null },
+  PREMIUM: { price: 59.99, commissionRate: 0, maxServices: null }
 };
 
 // Server-side pricing source of truth — never trust client-sent amounts
@@ -31,8 +31,8 @@ const PERIOD_PRICING: Record<string, Record<string, { total: number; months: num
     '6months': { total: 143.94, months: 6  },
   },
   PREMIUM: {
-    monthly: { total: 79.99,  months: 1  },
-    annual:  { total: 767.88, months: 12 },
+    monthly: { total: 59.99,  months: 1  },
+    annual:  { total: 575.88, months: 12 },
   },
 };
 
