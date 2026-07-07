@@ -5,7 +5,7 @@ import { authenticate } from '../middleware/auth.middleware';
 import { upload } from '../lib/upload';
 import { uploadToCloudinary, deleteFromCloudinary, extractPublicId } from '../lib/cloudinary';
 import prisma from '../lib/prisma';
-import { forgotPasswordLimiter } from '../middleware/rateLimit.middleware';
+import { forgotPasswordLimiter, resendVerificationLimiter } from '../middleware/rateLimit.middleware';
 import { validate } from '../middleware/validate.middleware';
 import { registerSchema, loginSchema, forgotPasswordSchema, resetPasswordSchema } from '../lib/schemas';
 
@@ -44,7 +44,7 @@ router.put('/profile', authenticate, updateProfile);
 router.put('/password', authenticate, changePassword);
 router.get('/pending-count', authenticate, getPendingCount);
 router.post('/avatar', authenticate, upload.single('avatar'), uploadAvatar);
-router.post('/send-verification', authenticate, sendVerificationEmail);
+router.post('/send-verification', authenticate, resendVerificationLimiter, sendVerificationEmail);
 router.get('/verify-email', verifyEmail);
 router.post('/refresh', refreshAccessToken);
 router.post('/logout', logout);

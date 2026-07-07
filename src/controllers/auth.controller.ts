@@ -16,6 +16,34 @@ const validatePassword = (password: string): string | null => {
   return null;
 };
 
+// Emite (o reutiliza) un token de verificación vigente y envía el correo.
+// Reutilizar evita que un segundo "reenviar" invalide el enlace de un correo
+// anterior que el usuario todavía no abrió (el link viejo dejaba de servir
+// silenciosamente y el usuario terminaba con la cuenta sin verificar).
+async function issueAndSendVerificationEmail(user: { id: string; email: string; name: string }) {
+  let record = await prisma.emailVerificationToken.findFirst({
+    where: { userId: user.id, used: false, expiresAt: { gt: new Date() } },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  if (!record) {
+    const token = crypto.randomBytes(32).toString('hex');
+    record = await prisma.emailVerificationToken.create({
+      data: { token, userId: user.id, expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) },
+    });
+    console.log(`[verify-email] token nuevo emitido para userId=${user.id}`);
+  } else {
+    console.log(`[verify-email] reutilizando token vigente para userId=${user.id}`);
+  }
+
+  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+  const verifyUrl = `${frontendUrl}/verificar-email?token=${record.token}`;
+
+  sendEmailVerification({ email: user.email, name: user.name, verifyUrl })
+    .then(() => console.log(`[verify-email] correo enviado a ${user.email}`))
+    .catch((err) => console.error(`[verify-email] fallo al enviar correo a ${user.email}:`, err));
+}
+
 // ============================================
 // 1. REGISTRO
 // ============================================
@@ -67,6 +95,9 @@ export const register = async (req: Request, res: Response) => {
     } else {
       sendWelcomeClient({ email: user.email, name: user.name }).catch(() => {});
     }
+    // Correo de verificación automático al registrarse — antes solo se enviaba
+    // si el usuario notaba y hacía clic en el aviso del dashboard.
+    issueAndSendVerificationEmail(user).catch((err) => console.error('[register] fallo al emitir verificación:', err));
 
     res.status(201).json({
       success: true,
@@ -329,24 +360,20 @@ export const sendVerificationEmail = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).userId as string;
     const user = await prisma.user.findUnique({ where: { id: userId } });
-    if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
-    if (user.emailVerified) return res.status(400).json({ error: 'Tu correo ya está verificado' });
+    if (!user) {
+      console.warn(`[send-verification] usuario no encontrado: userId=${userId}`);
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+    if (user.emailVerified) {
+      console.log(`[send-verification] ignorado, ya verificado: userId=${userId}`);
+      return res.status(400).json({ error: 'Tu correo ya está verificado' });
+    }
 
-    await prisma.emailVerificationToken.updateMany({
-      where: { userId, used: false },
-      data: { used: true },
-    });
-
-    const token = crypto.randomBytes(32).toString('hex');
-    await prisma.emailVerificationToken.create({
-      data: { token, userId, expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) },
-    });
-
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-    sendEmailVerification({ email: user.email, name: user.name, verifyUrl: `${frontendUrl}/verificar-email?token=${token}` }).catch(() => {});
+    await issueAndSendVerificationEmail(user);
 
     res.json({ success: true, message: 'Correo de verificación enviado.' });
-  } catch {
+  } catch (error: any) {
+    console.error('[send-verification] ERROR inesperado:', error);
     res.status(500).json({ error: 'Error al enviar verificación' });
   }
 };
@@ -355,22 +382,36 @@ export const sendVerificationEmail = async (req: Request, res: Response) => {
 // 9. VERIFICAR EMAIL CON TOKEN
 // ============================================
 export const verifyEmail = async (req: Request, res: Response) => {
+  const { token } = req.query as { token: string };
   try {
-    const { token } = req.query as { token: string };
-    if (!token) return res.status(400).json({ error: 'Token requerido' });
+    if (!token) {
+      console.warn('[verify-email] rechazado: falta el parámetro token');
+      return res.status(400).json({ error: 'Token requerido' });
+    }
 
     const record = await prisma.emailVerificationToken.findUnique({ where: { token } });
-    if (!record || record.used || record.expiresAt < new Date()) {
+    if (!record) {
+      console.warn(`[verify-email] rechazado: token no existe en BD (${token.slice(0, 8)}…)`);
+      return res.status(400).json({ error: 'El enlace no es válido o ya expiró.' });
+    }
+    if (record.used) {
+      console.warn(`[verify-email] rechazado: token ya usado (userId=${record.userId})`);
+      return res.status(400).json({ error: 'El enlace no es válido o ya expiró.' });
+    }
+    if (record.expiresAt < new Date()) {
+      console.warn(`[verify-email] rechazado: token expirado (userId=${record.userId}, expiraba=${record.expiresAt.toISOString()})`);
       return res.status(400).json({ error: 'El enlace no es válido o ya expiró.' });
     }
 
-    await prisma.$transaction([
+    const [updatedUser] = await prisma.$transaction([
       prisma.user.update({ where: { id: record.userId }, data: { emailVerified: true, emailVerifiedAt: new Date() } }),
       prisma.emailVerificationToken.update({ where: { id: record.id }, data: { used: true } }),
     ]);
+    console.log(`[verify-email] OK: userId=${record.userId}, emailVerified=${updatedUser.emailVerified}`);
 
     res.json({ success: true, message: '¡Correo verificado exitosamente!' });
-  } catch {
+  } catch (error: any) {
+    console.error(`[verify-email] ERROR inesperado (token=${token ? token.slice(0, 8) + '…' : 'ausente'}):`, error);
     res.status(500).json({ error: 'Error al verificar email' });
   }
 };

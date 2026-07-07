@@ -60,6 +60,18 @@ export const forgotPasswordLimiter = rateLimit({
   message: { error: 'Demasiados intentos de recuperación. Espera una hora antes de volver a intentarlo.' },
 });
 
+// ── 6b. REENVÍO DE VERIFICACIÓN DE EMAIL — 1 intento / minuto, key = userId ──
+export const resendVerificationLimiter = rateLimit({
+  ...base,
+  windowMs: 60 * 1000,
+  max: 1,
+  keyGenerator: (req: Request) => {
+    const userId = (req as any).userId as string | undefined;
+    return userId ? `resend-verify:${userId}` : ip(req);
+  },
+  message: { error: 'Espera un minuto antes de solicitar otro correo de verificación.' },
+});
+
 // ── 6. API GENERAL — 100 requests / 15 min, key = IP ────────────────────────
 export const generalLimiter = rateLimit({
   ...base,
