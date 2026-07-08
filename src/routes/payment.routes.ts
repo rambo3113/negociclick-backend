@@ -14,8 +14,9 @@ import { verifyCulqiWebhook } from '../middleware/verifyWebhook';
 
 const router = Router();
 
-// Webhook de Culqi — sin autenticación JWT, solo verificación HMAC
-router.post('/webhook', verifyCulqiWebhook, handleWebhook);
+// Webhook de Culqi — sin autenticación JWT, protegido por secreto en la URL
+// (configurar esta misma ruta completa, con el secreto, en el panel de Culqi)
+router.post('/webhook/:secret', verifyCulqiWebhook, handleWebhook);
 
 router.use(authenticate);
 

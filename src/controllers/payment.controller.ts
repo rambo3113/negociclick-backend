@@ -71,6 +71,8 @@ export const chargePayment = async (req: Request, res: Response) => {
     const id = req.params.id as string;
     const userId = (req as any).userId;
     const { token } = req.body as { token: string };
+    // Nota: el monto NUNCA sale del body — payment.amount fue fijado en
+    // initiatePayment desde booking.totalAmount (BD), no desde el cliente.
 
     if (!token) return res.status(400).json({ error: 'Falta token de pago' });
 
@@ -83,37 +85,75 @@ export const chargePayment = async (req: Request, res: Response) => {
     if (payment.userId !== userId) return res.status(403).json({ error: 'No tienes permiso' });
     if (payment.status === 'PAID') return res.status(400).json({ error: 'Este pago ya fue procesado' });
 
+    // Lock atómico PENDING -> PROCESSING: si dos requests de cobro llegan casi
+    // a la vez (doble clic), solo una pasa; la otra se rechaza ANTES de llamar
+    // a Culqi, evitando dos cargos reales sobre la misma reserva.
+    const locked = await prisma.payment.updateMany({
+      where: { id, status: 'PENDING' },
+      data: { status: 'PROCESSING' },
+    });
+    if (locked.count === 0) {
+      return res.status(409).json({ error: 'Este pago ya está siendo procesado o ya fue completado' });
+    }
+
     // Email tomado del JWT (no del body) para evitar falsificación
     const userRecord = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
     if (!userRecord) return res.status(404).json({ error: 'Usuario no encontrado' });
     const email = userRecord.email;
 
     const amountInCents = Math.round(Number(payment.amount) * 100);
+    let charge: any;
 
-    const charge = await culqiRequest('/charges', {
-      amount: amountInCents,
-      currency_code: 'PEN',
-      email,
-      source_id: token,
-      description: `NegociClick - Reserva #${payment.bookingId.slice(0, 8)}`,
-      metadata: { bookingId: payment.bookingId },
-    });
+    try {
+      charge = await culqiRequest('/charges', {
+        amount: amountInCents,
+        currency_code: 'PEN',
+        email,
+        source_id: token,
+        description: `NegociClick - Reserva #${payment.bookingId.slice(0, 8)}`,
+        metadata: { bookingId: payment.bookingId },
+      });
+    } catch (culqiErr: any) {
+      // Falla de red/timeout hablando con Culqi: liberar el lock para que se
+      // pueda reintentar en vez de dejar el pago atascado en PROCESSING.
+      await prisma.payment.update({ where: { id }, data: { status: 'PENDING' } });
+      console.error(`[charge] ERROR de red al llamar a Culqi — payment=${id} booking=${payment.bookingId}:`, culqiErr);
+      return res.status(502).json({ error: 'No se pudo conectar con la pasarela de pago. Intenta de nuevo.' });
+    }
 
     if (charge.object === 'error' || !charge.id) {
+      // Libera el lock para permitir reintentar con otra tarjeta.
+      await prisma.payment.update({ where: { id }, data: { status: 'PENDING' } });
       const message = charge.merchant_message || charge.user_message || 'Pago rechazado';
+      console.warn(`[charge] rechazado por Culqi — payment=${id} booking=${payment.bookingId}: ${message}`);
       return res.status(400).json({ error: message });
     }
 
-    const [updatedPayment] = await prisma.$transaction([
-      prisma.payment.update({
-        where: { id },
-        data: { status: 'PAID', providerId: charge.id },
-      }),
-      prisma.booking.update({
-        where: { id: payment.bookingId },
-        data: { status: 'CONFIRMED' },
-      }),
-    ]);
+    let updatedPayment;
+    try {
+      [updatedPayment] = await prisma.$transaction([
+        prisma.payment.update({
+          where: { id },
+          data: { status: 'PAID', providerId: charge.id },
+        }),
+        prisma.booking.update({
+          where: { id: payment.bookingId },
+          data: { status: 'CONFIRMED' },
+        }),
+      ]);
+    } catch (dbErr: any) {
+      // providerId es único: si este charge.id ya está registrado en otro pago
+      // (no debería pasar — cada charge es de un solo booking — pero por las
+      // dudas no dejamos el dinero cobrado sin registrar), lo dejamos en log
+      // de alerta explícito para revisión manual en vez de fallar en silencio.
+      // OJO: no revertimos el status a PENDING aquí — el cargo YA se hizo en
+      // Culqi, así que dejar el payment en PROCESSING fuerza revisión manual
+      // en vez de arriesgar un segundo cobro real por un reintento del cliente.
+      console.error(`[charge] ALERTA: cargo ${charge.id} exitoso en Culqi pero no se pudo registrar en BD (payment=${id}):`, dbErr);
+      throw dbErr;
+    }
+
+    console.log(`[charge] OK — payment=${id} booking=${payment.bookingId} charge=${charge.id} monto=${amountInCents}`);
 
     // Emails de confirmación
     const fullBooking = await prisma.booking.findUnique({
@@ -304,48 +344,101 @@ export const getAllPayments = async (req: Request, res: Response) => {
 // ============================================
 // 7. WEBHOOK DE CULQI
 // ============================================
+
+// Compara lo que Culqi confirma (consultado en vivo con la llave secreta, nunca
+// el payload del webhook en sí) contra el booking real en BD. Función pura y
+// testeable por separado del fetch a la API externa.
+export function chargeMatchesBooking(
+  charge: { object?: string; outcome?: { type?: string }; amount?: number },
+  booking: { totalAmount: unknown },
+): { ok: boolean; reason?: string } {
+  if (charge.object !== 'charge') {
+    return { ok: false, reason: `object="${charge.object}" (esperado "charge")` };
+  }
+  if (charge.outcome?.type !== 'venta_exitosa') {
+    return { ok: false, reason: `outcome.type="${charge.outcome?.type}" (esperado "venta_exitosa")` };
+  }
+  const expectedCents = Math.round(Number(booking.totalAmount) * 100);
+  if (charge.amount !== expectedCents) {
+    return { ok: false, reason: `monto no coincide: charge=${charge.amount} esperado=${expectedCents}` };
+  }
+  return { ok: true };
+}
+
 export const handleWebhook = async (req: Request, res: Response) => {
   const event = req.body as { type?: string; data?: { object?: any } };
 
   if (!event.type || !event.data?.object) {
+    console.warn('[webhook] evento inválido: falta type o data.object');
     return res.status(400).json({ error: 'Evento de webhook inválido' });
   }
 
   try {
     if (event.type === 'charge.succeeded') {
-      const chargeFromWebhook = event.data.object as { id: string; metadata?: { bookingId?: string } };
+      const chargeFromWebhook = event.data.object as { id?: string; metadata?: { bookingId?: string } };
+      const chargeId = chargeFromWebhook.id;
       const bookingId = chargeFromWebhook.metadata?.bookingId;
-      if (!bookingId) return res.json({ received: true });
 
-      // Re-verificar el cobro directamente con Culqi para evitar webhooks falsificados
-      const verified = await fetch(`https://api.culqi.com/v2/charges/${chargeFromWebhook.id}`, {
-        headers: { Authorization: `Bearer ${process.env.CULQI_SECRET_KEY}` },
-      }).then(r => r.json()) as { object?: string; outcome?: { type?: string } };
+      if (!chargeId || !bookingId) {
+        console.warn('[webhook] charge.succeeded sin id o sin metadata.bookingId — ignorado');
+        return res.json({ received: true });
+      }
 
-      if (verified.object !== 'charge' || verified.outcome?.type !== 'venta_exitosa') {
-        console.warn(`[webhook] Cobro ${chargeFromWebhook.id} no verificado con Culqi`);
+      // 1) Idempotencia primero: si este charge ya está registrado, no hace
+      // falta volver a consultar Culqi ni reprocesar nada.
+      const existingByCharge = await prisma.payment.findUnique({ where: { providerId: chargeId } });
+      if (existingByCharge) {
+        console.log(`[webhook] duplicado ignorado — charge=${chargeId} ya registrado en payment=${existingByCharge.id}`);
         return res.json({ received: true });
       }
 
       const payment = await prisma.payment.findFirst({ where: { bookingId } });
-      if (payment && payment.status !== 'PAID') {
-        await prisma.$transaction([
-          prisma.payment.update({
-            where: { id: payment.id },
-            data: { status: 'PAID', providerId: chargeFromWebhook.id },
-          }),
-          prisma.booking.update({
-            where: { id: bookingId },
-            data: { status: 'CONFIRMED' },
-          }),
-        ]);
-        console.log(`[webhook] charge.succeeded verificado — booking ${bookingId} confirmada`);
+      if (!payment) {
+        console.warn(`[webhook] booking=${bookingId} no tiene Payment asociado — ignorado`);
+        return res.json({ received: true });
       }
+      if (payment.status === 'PAID') {
+        console.log(`[webhook] duplicado ignorado — payment=${payment.id} ya estaba PAID`);
+        return res.json({ received: true });
+      }
+
+      const booking = await prisma.booking.findUnique({ where: { id: bookingId } });
+      if (!booking) {
+        console.warn(`[webhook] booking=${bookingId} no encontrado en BD — ignorado`);
+        return res.json({ received: true });
+      }
+
+      // 2) Nunca confiar en el payload del webhook: se re-consulta el cargo
+      // directamente a Culqi con la llave secreta.
+      const verified = await fetch(`https://api.culqi.com/v2/charges/${chargeId}`, {
+        headers: { Authorization: `Bearer ${process.env.CULQI_SECRET_KEY}` },
+      }).then(r => r.json()) as { object?: string; outcome?: { type?: string }; amount?: number };
+
+      const match = chargeMatchesBooking(verified, booking);
+      if (!match.ok) {
+        console.error(`[webhook] ALERTA: charge=${chargeId} no coincide con booking=${bookingId} — ${match.reason}. NO se marca pagado.`);
+        return res.json({ received: true });
+      }
+
+      // 3) Update atómico condicionado: si otra request (ej. chargePayment del
+      // cliente) ya lo marcó PAID entre el check y este punto, no se duplica.
+      const updateResult = await prisma.payment.updateMany({
+        where: { id: payment.id, status: { not: 'PAID' } },
+        data: { status: 'PAID', providerId: chargeId },
+      });
+
+      if (updateResult.count === 0) {
+        console.log(`[webhook] duplicado ignorado — payment=${payment.id} pasó a PAID en paralelo`);
+        return res.json({ received: true });
+      }
+
+      await prisma.booking.update({ where: { id: bookingId }, data: { status: 'CONFIRMED' } });
+      console.log(`[webhook] OK — charge=${chargeId} payment=${payment.id} booking=${bookingId} monto=${verified.amount}`);
     }
 
     if (event.type === 'charge.failed') {
-      const charge = event.data.object as { id: string; failure_message?: string };
-      console.warn(`[webhook] charge.failed — id: ${charge.id}, razón: ${charge.failure_message ?? 'desconocida'}`);
+      const charge = event.data.object as { id?: string; failure_message?: string };
+      console.warn(`[webhook] charge.failed — id=${charge.id ?? 'desconocido'}, razón: ${charge.failure_message ?? 'desconocida'}`);
     }
 
     res.json({ received: true });

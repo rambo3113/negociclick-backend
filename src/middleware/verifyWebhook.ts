@@ -1,18 +1,19 @@
 import { Request, Response, NextFunction } from 'express';
 
-// Culqi no firma webhooks con clave pública.
-// Verificamos con un token secreto en la URL: /api/payments/webhook?token=CULQI_WEBHOOK_TOKEN
-// Si alguien no conoce el token, el endpoint rechaza la petición antes de procesarla.
+// Culqi no firma sus webhooks con clave pública, así que verificamos con un
+// secreto embebido en la propia URL: /api/payments/webhook/:secret
+// Configura esa misma URL completa (con el secreto) en el panel de Culqi.
+// Quien no conozca el secreto ni siquiera llega a que se procese el payload.
 export function verifyCulqiWebhook(req: Request, res: Response, next: NextFunction) {
-  const expectedToken = process.env.CULQI_WEBHOOK_TOKEN;
-  if (!expectedToken) {
-    console.error('[webhook] CULQI_WEBHOOK_TOKEN no configurado');
+  const expectedSecret = process.env.CULQI_WEBHOOK_SECRET;
+  if (!expectedSecret) {
+    console.error('[webhook] CULQI_WEBHOOK_SECRET no configurado en el servidor');
     return res.status(500).json({ error: 'Webhook no configurado en el servidor' });
   }
 
-  const receivedToken = req.query.token as string | undefined;
-  if (!receivedToken || receivedToken !== expectedToken) {
-    console.warn('[webhook] Token inválido o ausente');
+  const receivedSecret = req.params.secret;
+  if (!receivedSecret || receivedSecret !== expectedSecret) {
+    console.warn('[webhook] Secreto de URL inválido o ausente');
     return res.status(401).json({ error: 'No autorizado' });
   }
 

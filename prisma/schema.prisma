@@ -229,7 +229,7 @@ model Payment {
   currency         String   @default("PEN")
   status           String   @default("PENDING")  // PENDING | PAID | FAILED | REFUNDED
   provider         String
-  providerId       String?
+  providerId       String?  @unique // charge ID de Culqi — único: un cargo no puede aplicarse a 2 pagos
   commissionAmount Decimal  @db.Decimal(10, 2)
   vendorAmount     Decimal  @db.Decimal(10, 2)
   metadata         String?
@@ -243,7 +243,6 @@ model Payment {
 
   @@index([userId])
   @@index([status])
-  @@index([providerId])
   @@index([userId, status])            // ingresos del vendor filtrados por estado
   @@index([userId, createdAt])         // historial de pagos del vendor por fecha
   @@map("payments")

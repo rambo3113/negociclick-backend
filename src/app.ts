@@ -35,6 +35,20 @@ import availabilityRoutes from './routes/availability.routes';
 
 dotenv.config();
 
+// ── Guard de arranque: variables críticas de pagos ──────────────────────────
+// Sin estas, el servidor arrancaría "cojo": cobros que nunca se pueden hacer
+// o un webhook que rechaza todo (o peor, que quede sin proteger). Mejor no
+// arrancar que arrancar roto en silencio.
+{
+  const requiredEnvVars = ['CULQI_SECRET_KEY', 'CULQI_WEBHOOK_SECRET'];
+  const missing = requiredEnvVars.filter(name => !process.env[name]);
+  if (missing.length > 0) {
+    console.error(`❌ Faltan variables de entorno obligatorias: ${missing.join(', ')}`);
+    console.error('   El servidor no puede arrancar sin ellas (necesarias para procesar pagos con Culqi).');
+    process.exit(1);
+  }
+}
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
