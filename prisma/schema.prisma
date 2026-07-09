@@ -35,6 +35,7 @@ model User {
   passwordResetTokens   PasswordResetToken[]
   emailVerificationTokens EmailVerificationToken[]
   refreshTokens         RefreshToken[]
+  reports               Report[]
 
   @@index([email])
   @@index([role])
@@ -90,6 +91,7 @@ model Business {
   logo         String?
   coverImage   String?
   isActive     Boolean  @default(true)
+  status       String   @default("active")   // active | suspended
   featured     Boolean  @default(false)
   featuredUntil DateTime?
   rating       Float?
@@ -112,11 +114,13 @@ model Business {
   photos              BusinessPhoto[]
   availabilityBlocks  AvailabilityBlock[]
   featuredPayments    FeaturedPayment[]
+  reports             Report[]
 
   @@index([ownerId])
   @@index([category])
   @@index([city])
   @@index([isActive])
+  @@index([status])
   @@index([isActive, category])        // búsqueda pública por categoría
   @@index([isActive, city])            // búsqueda pública por ciudad
   @@index([isActive, category, city])  // búsqueda pública combinada
@@ -191,6 +195,7 @@ model Service {
   businessId String
   business   Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
   bookings   Booking[]
+  reports    Report[]
 
   @@index([businessId])
   @@index([isActive])
@@ -338,6 +343,26 @@ model Review {
   @@index([businessId])
   @@index([clientId])
   @@map("reviews")
+}
+
+model Report {
+  id                  String    @id @default(cuid())
+  reason              String
+  status              String    @default("open")   // open | resolved
+  createdAt           DateTime  @default(now())
+  resolvedAt          DateTime?
+
+  reportedByUserId    String
+  reportedBy          User      @relation(fields: [reportedByUserId], references: [id])
+  reportedBusinessId  String?
+  reportedBusiness    Business? @relation(fields: [reportedBusinessId], references: [id])
+  reportedServiceId   String?
+  reportedService     Service?  @relation(fields: [reportedServiceId], references: [id])
+
+  @@index([status])
+  @@index([reportedByUserId])
+  @@index([reportedBusinessId])
+  @@map("reports")
 }
 
 model Banner {

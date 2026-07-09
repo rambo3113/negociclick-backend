@@ -2,11 +2,16 @@ import { Router } from 'express';
 import {
   getAdminStats,
   getAllUsers,
-  getAllBusinessesAdmin,
-  getFeaturedPaymentsAdmin,
+  getAdminBusinessesList,
+  getAdminSubscriptions,
+  getAdminPayments,
+  getAdminReports,
+  resolveReport,
+  suspendBusiness,
+  reactivateBusiness,
+  getAdminLogs,
   updateUserRole,
-  toggleBusinessActive,
-  getAuditLogs,
+  getFeaturedPaymentsAdmin,
 } from '../controllers/admin.controller';
 import { authenticate } from '../middleware/auth.middleware';
 import { requireAdmin } from '../middleware/admin.middleware';
@@ -17,12 +22,17 @@ const router = Router();
 
 router.use(authenticate, requireAdmin);
 
-router.get('/stats',                  getAdminStats);
-router.get('/users',                  getAllUsers);
-router.get('/businesses',             getAllBusinessesAdmin);
-router.get('/featured-payments',      getFeaturedPaymentsAdmin);
-router.put('/users/:id/role',         validate(updateRoleSchema), updateUserRole);
-router.put('/businesses/:id/toggle',  toggleBusinessActive);
-router.get('/audit-logs',             getAuditLogs);
+router.get('/stats',                          getAdminStats);
+router.get('/users',                          getAllUsers);
+router.put('/users/:id/role',                 validate(updateRoleSchema), updateUserRole);
+router.get('/businesses',                     getAdminBusinessesList);
+router.post('/businesses/:id/suspend',        suspendBusiness);
+router.post('/businesses/:id/reactivate',     reactivateBusiness);
+router.get('/subscriptions',                  getAdminSubscriptions);
+router.get('/payments',                       getAdminPayments);
+router.get('/reports',                        getAdminReports);
+router.post('/reports/:id/resolve',           resolveReport);
+router.get('/logs',                           getAdminLogs);
+router.get('/featured-payments',              getFeaturedPaymentsAdmin);
 
 export default router;
