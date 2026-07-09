@@ -10,6 +10,12 @@ import {
   uploadCoverImage,
   updateBusinessProfile,
 } from '../controllers/business.controller';
+import {
+  getPaymentConfig,
+  upsertPaymentConfig,
+  deletePaymentConfig,
+  updatePaymentInstructions,
+} from '../controllers/paymentConfig.controller';
 import { recordView, getAnalytics } from '../controllers/analytics.controller';
 import { authenticate } from '../middleware/auth.middleware';
 import { validateQuery } from '../middleware/validate.middleware';
@@ -31,5 +37,11 @@ router.put('/:id', authenticate, updateBusiness);
 router.put('/:id/profile', authenticate, updateBusinessProfile);
 router.post('/:id/cover', authenticate, upload.single('cover'), uploadCoverImage);
 router.delete('/:id', authenticate, deleteBusiness);
+
+// Cobros por negocio
+router.get('/:id/payment-config', authenticate, getPaymentConfig);
+router.put('/:id/payment-config', authenticate, upsertPaymentConfig);
+router.delete('/:id/payment-config', authenticate, deletePaymentConfig);
+router.put('/:id/payment-instructions', authenticate, updatePaymentInstructions);
 
 export default router;

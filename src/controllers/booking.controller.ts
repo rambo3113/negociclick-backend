@@ -59,6 +59,20 @@ export const createBooking = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'El negocio no está disponible' });
     }
 
+    // Gate de plan FREE: el negocio está visible pero no acepta reservas/pedidos online.
+    // Solo aplica a bookings nuevos — no toca bookings existentes.
+    const ownerSub = await prisma.subscription.findFirst({
+      where: { userId: service.business.ownerId, status: 'ACTIVE' },
+      orderBy: { startDate: 'desc' },
+      select: { plan: true },
+    });
+    if (!ownerSub || ownerSub.plan === 'FREE') {
+      return res.status(403).json({
+        error: 'Este negocio aún no recibe pedidos online',
+        code: 'BUSINESS_FREE_PLAN',
+      });
+    }
+
     const isOrderMode = service.business.orderMode === 'ORDER';
 
     if (isOrderMode) {

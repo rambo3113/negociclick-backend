@@ -266,11 +266,25 @@ export const getBusinessById = async (req: Request, res: Response) => {
     });
     const ownerPlan = ownerSubscription?.plan ?? 'FREE';
 
+    // Pago online activo: PREMIUM + llaves validadas
+    const onlinePaymentEnabled = !!(
+      ownerPlan === 'PREMIUM' &&
+      business.culqiPublicKey &&
+      business.culqiKeysValidatedAt
+    );
+
+    // culqiSecretKeyEnc NUNCA sale al cliente — se omite en el spread y se
+    // expone solo si el pago online está activo (la pk sí es pública).
+    const { culqiSecretKeyEnc: _omit, ...businessPublic } = business as any;
+
     const payload = {
       success: true,
       business: {
-        ...business,
+        ...businessPublic,
         ownerPlan,
+        onlinePaymentEnabled,
+        // Exponer pk solo si el pago online está activo (el frontend la necesita para el checkout)
+        culqiPublicKey: onlinePaymentEnabled ? business.culqiPublicKey : null,
         averageRating: averageRating ? Number(averageRating.toFixed(1)) : null,
         totalReviews
       }

@@ -1,14 +1,16 @@
 import { Request, Response } from 'express';
 import prisma from '../lib/prisma';
 import { sendBookingConfirmedToClient, sendPaymentReceivedToVendor } from '../lib/email';
+import { resolveBusinessCulqiKeys } from '../utils/paymentKeys.util';
 
 const CULQI_API = 'https://api.culqi.com/v2';
 
-async function culqiRequest(path: string, body: object) {
+async function culqiRequest(path: string, body: object, secretKey?: string) {
+  const sk = secretKey ?? process.env.CULQI_SECRET_KEY!;
   const res = await fetch(`${CULQI_API}${path}`, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${process.env.CULQI_SECRET_KEY}`,
+      Authorization: `Bearer ${sk}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(body),
@@ -104,6 +106,11 @@ export const chargePayment = async (req: Request, res: Response) => {
     const amountInCents = Math.round(Number(payment.amount) * 100);
     let charge: any;
 
+    const { secretKey: bizSecretKey } = await resolveBusinessCulqiKeys(
+      payment.booking.businessId,
+      prisma,
+    );
+
     try {
       charge = await culqiRequest('/charges', {
         amount: amountInCents,
@@ -112,7 +119,7 @@ export const chargePayment = async (req: Request, res: Response) => {
         source_id: token,
         description: `NegociClick - Reserva #${payment.bookingId.slice(0, 8)}`,
         metadata: { bookingId: payment.bookingId },
-      });
+      }, bizSecretKey);
     } catch (culqiErr: any) {
       // Falla de red/timeout hablando con Culqi: liberar el lock para que se
       // pueda reintentar en vez de dejar el pago atascado en PROCESSING.
@@ -409,9 +416,10 @@ export const handleWebhook = async (req: Request, res: Response) => {
       }
 
       // 2) Nunca confiar en el payload del webhook: se re-consulta el cargo
-      // directamente a Culqi con la llave secreta.
+      // directamente a Culqi con la llave secreta del negocio dueño del booking.
+      const { secretKey: webhookSk } = await resolveBusinessCulqiKeys(booking.businessId, prisma);
       const verified = await fetch(`https://api.culqi.com/v2/charges/${chargeId}`, {
-        headers: { Authorization: `Bearer ${process.env.CULQI_SECRET_KEY}` },
+        headers: { Authorization: `Bearer ${webhookSk}` },
       }).then(r => r.json()) as { object?: string; outcome?: { type?: string }; amount?: number };
 
       const match = chargeMatchesBooking(verified, booking);

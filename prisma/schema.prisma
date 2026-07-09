@@ -95,6 +95,11 @@ model Business {
   rating       Float?
   totalReviews Int?     @default(0)
   viewCount    Int      @default(0)
+  // Cobros directos por negocio (PREMIUM)
+  paymentInstructions  String?   // texto libre: Yape, transferencia, contra entrega…
+  culqiPublicKey       String?   // pk_live_* o pk_test_*
+  culqiSecretKeyEnc    String?   // sk cifrada AES-256-GCM (formato iv:tag:ciphertext)
+  culqiKeysValidatedAt DateTime? // null = sin llaves válidas → pago directo
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
