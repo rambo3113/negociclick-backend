@@ -11,6 +11,37 @@ import { audit } from '../lib/audit';
 const JWT_SECRET = process.env.JWT_SECRET!;
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
+// ── Re-autenticación con Google ─────────────────────────────────────────────
+// Verifica un ID token de Google fresco (emitido hace < 5 min) y que su sub
+// coincida con el googleId del usuario. Usado en deleteAccount y changePassword
+// para operaciones destructivas en cuentas solo-Google.
+// Lanza Error con mensaje user-facing si algo falla.
+async function verifyFreshGoogleToken(idToken: string, expectedGoogleId: string): Promise<void> {
+  let payload: any;
+  try {
+    const ticket = await googleClient.verifyIdToken({
+      idToken,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+    payload = ticket.getPayload();
+  } catch {
+    throw new Error('Token de Google inválido o expirado. Vuelve a iniciar sesión con Google.');
+  }
+
+  if (!payload?.sub) throw new Error('Token de Google inválido');
+  if (payload.sub !== expectedGoogleId) {
+    throw new Error('El token de Google no corresponde a esta cuenta');
+  }
+
+  // iat está en segundos Unix. El token debe ser reciente (< 5 min) para
+  // que no sea reutilizable de una sesión anterior del atacante.
+  const nowSec = Math.floor(Date.now() / 1000);
+  const iat = payload.iat ?? 0;
+  if (nowSec - iat > 300) {
+    throw new Error('El token de Google es demasiado antiguo. Vuelve a iniciar sesión con Google para confirmar la acción.');
+  }
+}
+
 const validatePassword = (password: string): string | null => {
   if (password.length < 8) return 'La contraseña debe tener al menos 8 caracteres';
   if (!/[A-Z]/.test(password)) return 'La contraseña debe tener al menos una mayúscula';
@@ -223,25 +254,52 @@ export const googleAuth = async (req: Request, res: Response) => {
       return res.status(401).json({ error: 'Google no devolvió los datos esperados' });
     }
 
-    const googleId = payload.sub;
-    const googleEmail = payload.email;
-    const name = payload.name || googleEmail.split('@')[0];
-    const picture = payload.picture;
+    // Fix 1 (CRÍTICO): rechazar si Google no verificó explícitamente el email.
+    // Sin este check, un atacante con un email no verificado en Google podría
+    // vincular su cuenta Google a la cuenta de otra persona (account takeover).
+    if (payload.email_verified !== true) {
+      console.warn(`[google-auth] email no verificado en Google: ${payload.email}`);
+      return res.status(403).json({
+        error: 'Tu dirección de email no está verificada en Google. Verifica tu email en Google primero.',
+      });
+    }
 
-    let user = await prisma.user.findUnique({ where: { googleId } });
+    const googleId    = payload.sub;
+    const googleEmail = payload.email;
+    const name        = payload.name || googleEmail.split('@')[0];
+    const picture     = payload.picture;
+
+    let user: any;
     let isNewUser = false;
 
-    if (!user) {
-      // ¿Ya existe una cuenta con este email (creada con password)? La vinculamos.
-      user = await prisma.user.findUnique({ where: { email: googleEmail } });
-      if (user) {
+    // Fix 3: todos los guards (isActive, etc.) ANTES de cualquier escritura a BD.
+    const existingByGoogleId = await prisma.user.findUnique({ where: { googleId } });
+
+    if (existingByGoogleId) {
+      // Cuenta ya vinculada con este googleId
+      if (!existingByGoogleId.isActive) {
+        return res.status(403).json({ error: 'Esta cuenta está desactivada' });
+      }
+      user = existingByGoogleId;
+      audit('GOOGLE_LOGIN', { userId: user.id, meta: { email: user.email }, req });
+
+    } else {
+      // Sin cuenta con este googleId — buscar por email para vincular
+      const existingByEmail = await prisma.user.findUnique({ where: { email: googleEmail } });
+
+      if (existingByEmail) {
+        // Fix 3: verificar isActive ANTES del UPDATE que vincula googleId
+        if (!existingByEmail.isActive) {
+          return res.status(403).json({ error: 'Esta cuenta está desactivada' });
+        }
         user = await prisma.user.update({
-          where: { id: user.id },
-          data: { googleId, googleEmail, avatar: user.avatar ?? picture ?? null },
+          where: { id: existingByEmail.id },
+          data: { googleId, googleEmail, avatar: existingByEmail.avatar ?? picture ?? null },
         });
         audit('GOOGLE_LINK', { userId: user.id, meta: { email: user.email }, req });
+
       } else {
-        // Cuenta nueva, solo Google — sin password. Google ya verificó el email.
+        // Cuenta nueva — email_verified ya validado arriba, marcamos como verificado
         user = await prisma.user.create({
           data: {
             name,
@@ -251,7 +309,7 @@ export const googleAuth = async (req: Request, res: Response) => {
             googleId,
             googleEmail,
             avatar: picture ?? null,
-            emailVerified: payload.email_verified ?? true,
+            emailVerified: true,      // Fix 1: solo llegamos aquí si email_verified === true
             emailVerifiedAt: new Date(),
           },
         });
@@ -259,12 +317,6 @@ export const googleAuth = async (req: Request, res: Response) => {
         audit('GOOGLE_SIGNUP', { userId: user.id, meta: { email: user.email }, req });
         sendWelcomeClient({ email: user.email, name: user.name }).catch(() => {});
       }
-    } else {
-      audit('GOOGLE_LOGIN', { userId: user.id, meta: { email: user.email }, req });
-    }
-
-    if (!user.isActive) {
-      return res.status(403).json({ error: 'Esta cuenta está desactivada' });
     }
 
     // Mismo flujo de 2FA que el login normal — Google no lo saltea.
@@ -410,24 +462,50 @@ export const updateProfile = async (req: Request, res: Response) => {
 export const changePassword = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).userId as string;
-    const { currentPassword, newPassword } = req.body as { currentPassword: string; newPassword: string };
+    // currentPassword: requerido para cuentas con password
+    // idToken: requerido para cuentas solo-Google (primer password de respaldo)
+    const { currentPassword, newPassword, idToken } = req.body as {
+      currentPassword?: string;
+      newPassword?: string;
+      idToken?: string;
+    };
 
-    if (!currentPassword || !newPassword)
-      return res.status(400).json({ error: 'Se requieren la contraseña actual y la nueva' });
+    if (!newPassword)
+      return res.status(400).json({ error: 'La nueva contraseña es requerida' });
     const pwdError = validatePassword(newPassword);
     if (pwdError) return res.status(400).json({ error: pwdError });
 
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
 
-    // Cuenta creada solo con Google (sin password aún): no hay "actual" que verificar,
-    // esto actúa como establecer la contraseña de respaldo por primera vez.
     if (user.password) {
+      // Fix 4: cuenta con contraseña — currentPassword obligatorio y verificado con bcrypt
+      if (!currentPassword) {
+        return res.status(400).json({ error: 'La contraseña actual es requerida' });
+      }
       const valid = await bcrypt.compare(currentPassword, user.password);
       if (!valid) {
         audit('PASSWORD_CHANGE_FAILED', { userId, meta: { reason: 'wrong_current_password' }, req });
         return res.status(401).json({ error: 'La contraseña actual es incorrecta' });
       }
+    } else if (user.googleId) {
+      // Fix 4: cuenta solo-Google — re-autenticar con token fresco de Google
+      // Se niega cualquier currentPassword; solo se acepta idToken reciente.
+      if (!idToken) {
+        return res.status(400).json({
+          error: 'Para establecer tu primera contraseña, confirma tu identidad con Google.',
+          requiresGoogleReauth: true,
+        });
+      }
+      try {
+        await verifyFreshGoogleToken(idToken, user.googleId);
+      } catch (err: any) {
+        audit('PASSWORD_CHANGE_FAILED', { userId, meta: { reason: 'google_reauth_failed' }, req });
+        return res.status(401).json({ error: err.message });
+      }
+    } else {
+      // Edge case: usuario sin password ni googleId (estado incoherente)
+      return res.status(400).json({ error: 'No se puede cambiar la contraseña sin verificación de identidad.' });
     }
 
     const hashed = await bcrypt.hash(newPassword, 10);
@@ -604,18 +682,37 @@ export const getPendingCount = async (req: Request, res: Response) => {
 export const deleteAccount = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).userId as string;
-    const { password } = req.body as { password?: string };
+    // password: para cuentas con contraseña
+    // idToken: para cuentas solo-Google (token fresco emitido hace < 5 min)
+    const { password, idToken } = req.body as { password?: string; idToken?: string };
 
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
 
-    // Cuentas solo-Google no tienen password que confirmar — el JWT ya prueba identidad.
     if (user.password) {
+      // Fix 2: cuenta con contraseña — confirmar con bcrypt
       if (!password) {
         return res.status(400).json({ error: 'Debes confirmar tu contraseña para eliminar la cuenta' });
       }
       const valid = await bcrypt.compare(password, user.password);
       if (!valid) return res.status(401).json({ error: 'Contraseña incorrecta. No se puede eliminar la cuenta.' });
+    } else if (user.googleId) {
+      // Fix 2: cuenta solo-Google — re-autenticar con token fresco
+      // Un JWT de acceso (15 min) no es suficiente para una acción irreversible.
+      if (!idToken) {
+        return res.status(400).json({
+          error: 'Para eliminar una cuenta de Google, debes confirmar con un token de Google reciente.',
+          requiresGoogleReauth: true,
+        });
+      }
+      try {
+        await verifyFreshGoogleToken(idToken, user.googleId);
+      } catch (err: any) {
+        return res.status(401).json({ error: err.message });
+      }
+    } else {
+      // Edge case: cuenta sin password ni googleId
+      return res.status(400).json({ error: 'No se puede eliminar la cuenta sin verificación de identidad.' });
     }
 
     // Eliminar en orden para respetar foreign keys
