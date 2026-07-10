@@ -12,11 +12,12 @@
 
 export function toPublicBusiness<T extends Record<string, unknown>>(b: T) {
   const {
-    culqiSecretKeyEnc: _s,
-    culqiPublicKey:    _p,
+    culqiSecretKeyEnc:    _s,
+    culqiPublicKey:       _p,
     culqiKeysValidatedAt: _v,
-    email:             _e,
-    owner:             _o,
+    email:                _e,
+    owner:                _o,
+    ownerId:              _id,  // FK interna — no necesaria en clientes
     ...pub
   } = b;
   return pub;
