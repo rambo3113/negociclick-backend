@@ -7,6 +7,7 @@ import {
   invalidateBusiness,
 } from '../lib/cache';
 import { runAsync } from '../lib/asyncTask';
+import { toPublicBusiness, omitCulqiSecret } from '../utils/businessDto';
 
 // ============================================
 // 1. CREAR UN NEGOCIO
@@ -95,7 +96,7 @@ export const createBusiness = async (req: Request, res: Response) => {
     res.status(201).json({
       success: true,
       message: 'Negocio creado exitosamente',
-      business
+      business: omitCulqiSecret(business as any)
     });
 
   } catch (error) {
@@ -159,7 +160,6 @@ export const getAllBusinesses = async (req: Request, res: Response) => {
       prisma.business.findMany({
         where,
         include: {
-          owner:    { select: { id: true, name: true, email: true } },
           services: { where: { isActive: true } },
           reviews:  { select: { rating: true } },
         },
@@ -178,7 +178,7 @@ export const getAllBusinesses = async (req: Request, res: Response) => {
       const minSvcPrice = b.services.length > 0 ? Math.min(...b.services.map(s => Number(s.price))) : null;
       const now = new Date();
       const isFeatured = b.featured && !!b.featuredUntil && b.featuredUntil > now;
-      return { ...b, averageRating, totalReviews, minPrice: minSvcPrice, featured: isFeatured };
+      return toPublicBusiness({ ...b, averageRating, totalReviews, minPrice: minSvcPrice, featured: isFeatured });
     });
 
     // Ordenamiento en memoria para rating y precio (requiere datos calculados)
@@ -226,10 +226,7 @@ export const getBusinessById = async (req: Request, res: Response) => {
       include: {
         owner: {
           select: {
-            id: true,
             name: true,
-            email: true,
-            phone: true,
             avatar: true,
           }
         },
@@ -261,7 +258,7 @@ export const getBusinessById = async (req: Request, res: Response) => {
 
     // Plan activo del propietario
     const ownerSubscription = await prisma.subscription.findFirst({
-      where: { userId: business.owner.id, status: 'ACTIVE' },
+      where: { userId: business.ownerId, status: 'ACTIVE' },
       orderBy: { startDate: 'desc' },
     });
     const ownerPlan = ownerSubscription?.plan ?? 'FREE';
@@ -273,9 +270,16 @@ export const getBusinessById = async (req: Request, res: Response) => {
       business.culqiKeysValidatedAt
     );
 
-    // culqiSecretKeyEnc NUNCA sale al cliente — se omite en el spread y se
-    // expone solo si el pago online está activo (la pk sí es pública).
-    const { culqiSecretKeyEnc: _omit, ...businessPublic } = business as any;
+    // culqiSecretKeyEnc y culqiKeysValidatedAt NUNCA salen al cliente.
+    // email del negocio tampoco es público.
+    // culqiPublicKey solo si el pago online está activo (el frontend la necesita para checkout).
+    const {
+      culqiSecretKeyEnc: _s,
+      culqiKeysValidatedAt: _v,
+      culqiPublicKey: _pk,
+      email: _email,
+      ...businessPublic
+    } = business as any;
 
     const payload = {
       success: true,
@@ -283,7 +287,6 @@ export const getBusinessById = async (req: Request, res: Response) => {
         ...businessPublic,
         ownerPlan,
         onlinePaymentEnabled,
-        // Exponer pk solo si el pago online está activo (el frontend la necesita para el checkout)
         culqiPublicKey: onlinePaymentEnabled ? business.culqiPublicKey : null,
         averageRating: averageRating ? Number(averageRating.toFixed(1)) : null,
         totalReviews
@@ -353,7 +356,7 @@ export const updateBusinessProfile = async (req: Request, res: Response) => {
     });
 
     invalidateBusiness(id);
-    res.json({ success: true, business: updated });
+    res.json({ success: true, business: omitCulqiSecret(updated as any) });
   } catch {
     res.status(500).json({ error: 'Error al actualizar perfil' });
   }
@@ -407,7 +410,7 @@ export const updateBusiness = async (req: Request, res: Response) => {
     res.json({
       success: true,
       message: 'Negocio actualizado exitosamente',
-      business: updatedBusiness
+      business: omitCulqiSecret(updatedBusiness as any)
     });
 
   } catch (error) {
@@ -433,13 +436,15 @@ export const getMyBusinesses = async (req: Request, res: Response) => {
       orderBy: { createdAt: 'desc' }
     });
 
-    const result = businesses.map((b: typeof businesses[0]) => ({
-      ...b,
-      averageRating: b.reviews.length > 0
-        ? Number((b.reviews.reduce((sum: number, r: { rating: number }) => sum + r.rating, 0) / b.reviews.length).toFixed(1))
-        : null,
-      totalReviews: b.reviews.length
-    }));
+    const result = businesses.map((b: typeof businesses[0]) =>
+      omitCulqiSecret({
+        ...b,
+        averageRating: b.reviews.length > 0
+          ? Number((b.reviews.reduce((sum: number, r: { rating: number }) => sum + r.rating, 0) / b.reviews.length).toFixed(1))
+          : null,
+        totalReviews: b.reviews.length,
+      } as any)
+    );
 
     res.json({ success: true, count: result.length, businesses: result });
 
@@ -483,7 +488,7 @@ export const deleteBusiness = async (req: Request, res: Response) => {
     res.json({
       success: true,
       message: 'Negocio eliminado exitosamente',
-      business: deletedBusiness
+      business: omitCulqiSecret(deletedBusiness as any)
     });
 
   } catch (error) {
