@@ -40,7 +40,10 @@ dotenv.config();
 // o un webhook que rechaza todo (o peor, que quede sin proteger). Mejor no
 // arrancar que arrancar roto en silencio.
 {
-  const requiredEnvVars = ['CULQI_SECRET_KEY', 'CULQI_WEBHOOK_SECRET', 'PAYMENT_KEYS_ENCRYPTION_KEY'];
+  // GOOGLE_CLIENT_SECRET no está acá: el backend solo verifica el ID token
+  // (verifyIdToken con GOOGLE_CLIENT_ID como audience); el secret lo usa
+  // next-auth en el frontend para el intercambio del authorization code.
+  const requiredEnvVars = ['CULQI_SECRET_KEY', 'CULQI_WEBHOOK_SECRET', 'PAYMENT_KEYS_ENCRYPTION_KEY', 'GOOGLE_CLIENT_ID'];
   const missing = requiredEnvVars.filter(name => !process.env[name]);
   if (missing.length > 0) {
     console.error(`❌ Faltan variables de entorno obligatorias: ${missing.join(', ')}`);

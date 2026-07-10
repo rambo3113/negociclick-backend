@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { register, login, getProfile, updateProfile, changePassword, getPendingCount, forgotPassword, resetPassword, sendVerificationEmail, verifyEmail, refreshAccessToken, logout, deleteAccount } from '../controllers/auth.controller';
+import { register, login, googleAuth, unlinkGoogle, getProfile, updateProfile, changePassword, getPendingCount, forgotPassword, resetPassword, sendVerificationEmail, verifyEmail, refreshAccessToken, logout, deleteAccount } from '../controllers/auth.controller';
 import { setup2FA, enable2FA, verifyLogin2FA, disable2FA, get2FAStatus, regenerateBackupCodes } from '../controllers/twofa.controller';
 import { authenticate } from '../middleware/auth.middleware';
 import { upload } from '../lib/upload';
@@ -37,6 +37,8 @@ async function uploadAvatar(req: Request, res: Response) {
 
 router.post('/register',       validate(registerSchema), register);
 router.post('/login',          validate(loginSchema), login);
+router.post('/google-callback', googleAuth);
+router.post('/unlink-google',  authenticate, unlinkGoogle);
 router.post('/forgot-password', forgotPasswordLimiter, validate(forgotPasswordSchema), forgotPassword);
 router.post('/reset-password', validate(resetPasswordSchema), resetPassword);
 router.get('/profile', authenticate, getProfile);

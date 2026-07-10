@@ -191,8 +191,11 @@ export const disable2FA = async (req: Request, res: Response) => {
     if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
     if (!user.twoFactorEnabled) return res.status(400).json({ error: '2FA no está habilitado' });
 
-    const valid = await bcrypt.compare(password, user.password);
-    if (!valid) return res.status(401).json({ error: 'Contraseña incorrecta' });
+    // Cuentas solo-Google no tienen password que confirmar — el JWT ya prueba identidad.
+    if (user.password) {
+      const valid = await bcrypt.compare(password, user.password);
+      if (!valid) return res.status(401).json({ error: 'Contraseña incorrecta' });
+    }
 
     await prisma.user.update({
       where: { id: userId },

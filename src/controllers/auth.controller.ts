@@ -2,12 +2,14 @@ import { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
+import { OAuth2Client } from 'google-auth-library';
 import prisma from '../lib/prisma';
 import { generateAccessToken, generateRefreshToken } from '../utils/jwt.util';
 import { sendPasswordResetEmail, sendEmailVerification, sendWelcomeVendor, sendWelcomeClient } from '../lib/email';
 import { audit } from '../lib/audit';
 
 const JWT_SECRET = process.env.JWT_SECRET!;
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 const validatePassword = (password: string): string | null => {
   if (password.length < 8) return 'La contraseña debe tener al menos 8 caracteres';
@@ -140,6 +142,11 @@ export const login = async (req: Request, res: Response) => {
       return res.status(401).json({ error: 'Credenciales inválidas' });
     }
 
+    if (!user.password) {
+      audit('LOGIN_FAILED', { userId: user.id, meta: { email: user.email, reason: 'google_only_account' }, req });
+      return res.status(401).json({ error: 'Esta cuenta se creó con Google. Inicia sesión con "Continuar con Google" o configura una contraseña desde tu perfil.' });
+    }
+
     const valid = await bcrypt.compare(password, user.password);
     if (!valid) {
       audit('LOGIN_FAILED', { userId: user.id, meta: { email: user.email, reason: 'wrong_password' }, req });
@@ -188,6 +195,145 @@ export const login = async (req: Request, res: Response) => {
 };
 
 // ============================================
+// 2b. LOGIN / SIGNUP CON GOOGLE
+// ============================================
+// El frontend (next-auth) nos manda el ID token crudo que Google le dio —
+// NUNCA confiamos en googleId/email/name sueltos en el body, porque
+// cualquiera podría mandar esos campos y hacerse pasar por otro usuario.
+// Verificamos el JWT de Google nosotros mismos, contra nuestro propio
+// GOOGLE_CLIENT_ID como audience, y solo confiamos en lo que Google firmó.
+export const googleAuth = async (req: Request, res: Response) => {
+  try {
+    const { idToken } = req.body as { idToken?: string };
+    if (!idToken) return res.status(400).json({ error: 'Falta idToken' });
+
+    let payload;
+    try {
+      const ticket = await googleClient.verifyIdToken({
+        idToken,
+        audience: process.env.GOOGLE_CLIENT_ID,
+      });
+      payload = ticket.getPayload();
+    } catch (verifyErr) {
+      console.warn('[google-auth] idToken inválido:', verifyErr instanceof Error ? verifyErr.message : verifyErr);
+      return res.status(401).json({ error: 'Token de Google inválido o expirado' });
+    }
+
+    if (!payload?.sub || !payload.email) {
+      return res.status(401).json({ error: 'Google no devolvió los datos esperados' });
+    }
+
+    const googleId = payload.sub;
+    const googleEmail = payload.email;
+    const name = payload.name || googleEmail.split('@')[0];
+    const picture = payload.picture;
+
+    let user = await prisma.user.findUnique({ where: { googleId } });
+    let isNewUser = false;
+
+    if (!user) {
+      // ¿Ya existe una cuenta con este email (creada con password)? La vinculamos.
+      user = await prisma.user.findUnique({ where: { email: googleEmail } });
+      if (user) {
+        user = await prisma.user.update({
+          where: { id: user.id },
+          data: { googleId, googleEmail, avatar: user.avatar ?? picture ?? null },
+        });
+        audit('GOOGLE_LINK', { userId: user.id, meta: { email: user.email }, req });
+      } else {
+        // Cuenta nueva, solo Google — sin password. Google ya verificó el email.
+        user = await prisma.user.create({
+          data: {
+            name,
+            email: googleEmail,
+            password: null,
+            role: 'CLIENT',
+            googleId,
+            googleEmail,
+            avatar: picture ?? null,
+            emailVerified: payload.email_verified ?? true,
+            emailVerifiedAt: new Date(),
+          },
+        });
+        isNewUser = true;
+        audit('GOOGLE_SIGNUP', { userId: user.id, meta: { email: user.email }, req });
+        sendWelcomeClient({ email: user.email, name: user.name }).catch(() => {});
+      }
+    } else {
+      audit('GOOGLE_LOGIN', { userId: user.id, meta: { email: user.email }, req });
+    }
+
+    if (!user.isActive) {
+      return res.status(403).json({ error: 'Esta cuenta está desactivada' });
+    }
+
+    // Mismo flujo de 2FA que el login normal — Google no lo saltea.
+    if (user.twoFactorEnabled) {
+      const tempToken = jwt.sign(
+        { userId: user.id, purpose: '2fa_pending' },
+        JWT_SECRET,
+        { expiresIn: '5m' },
+      );
+      return res.json({
+        requiresTwoFactor: true,
+        tempToken,
+        message: 'Ingresa el código de 6 dígitos de tu autenticador',
+      });
+    }
+
+    const accessToken  = generateAccessToken({ userId: user.id, email: user.email, role: user.role });
+    const refreshToken = generateRefreshToken();
+    await prisma.refreshToken.create({
+      data: { token: refreshToken, userId: user.id, expiresAt: new Date(Date.now() + 7 * 86_400_000) },
+    });
+
+    res.status(isNewUser ? 201 : 200).json({
+      success: true,
+      token: accessToken,
+      refreshToken,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        phone: user.phone,
+        role: user.role,
+        avatar: user.avatar,
+        emailVerified: user.emailVerified,
+      },
+    });
+  } catch (error: any) {
+    console.error('[google-auth] Error inesperado:', error);
+    res.status(500).json({ error: 'Error al procesar el inicio de sesión con Google' });
+  }
+};
+
+// ============================================
+// 2c. DESVINCULAR GOOGLE
+// ============================================
+export const unlinkGoogle = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).userId as string;
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
+
+    if (!user.googleId) {
+      return res.status(400).json({ error: 'Esta cuenta no está vinculada con Google' });
+    }
+    if (!user.password) {
+      return res.status(400).json({ error: 'No puedes desvincular Google sin antes configurar una contraseña de respaldo.' });
+    }
+
+    await prisma.user.update({ where: { id: userId }, data: { googleId: null, googleEmail: null } });
+    audit('GOOGLE_UNLINK', { userId, req });
+
+    res.json({ success: true, message: 'Cuenta de Google desvinculada correctamente.' });
+  } catch (error: any) {
+    console.error('[unlink-google] Error inesperado:', error);
+    res.status(500).json({ error: 'Error al desvincular Google' });
+  }
+};
+
+// ============================================
 // 3. PERFIL DEL USUARIO AUTENTICADO
 // ============================================
 export const getProfile = async (req: Request, res: Response) => {
@@ -206,6 +352,9 @@ export const getProfile = async (req: Request, res: Response) => {
         isActive: true,
         emailVerified: true,
         createdAt: true,
+        googleId: true,
+        googleEmail: true,
+        password: true,
         businesses: {
           where: { isActive: true },
           select: {
@@ -222,7 +371,10 @@ export const getProfile = async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Usuario no encontrado' });
     }
 
-    res.json({ success: true, user });
+    // Nunca mandar el hash de la contraseña al cliente — solo si existe o no.
+    const { password, ...safeUser } = user;
+
+    res.json({ success: true, user: { ...safeUser, hasPassword: !!password } });
 
   } catch (error: any) {
     console.error('Error al obtener perfil:', error);
@@ -268,10 +420,14 @@ export const changePassword = async (req: Request, res: Response) => {
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
 
-    const valid = await bcrypt.compare(currentPassword, user.password);
-    if (!valid) {
-      audit('PASSWORD_CHANGE_FAILED', { userId, meta: { reason: 'wrong_current_password' }, req });
-      return res.status(401).json({ error: 'La contraseña actual es incorrecta' });
+    // Cuenta creada solo con Google (sin password aún): no hay "actual" que verificar,
+    // esto actúa como establecer la contraseña de respaldo por primera vez.
+    if (user.password) {
+      const valid = await bcrypt.compare(currentPassword, user.password);
+      if (!valid) {
+        audit('PASSWORD_CHANGE_FAILED', { userId, meta: { reason: 'wrong_current_password' }, req });
+        return res.status(401).json({ error: 'La contraseña actual es incorrecta' });
+      }
     }
 
     const hashed = await bcrypt.hash(newPassword, 10);
@@ -450,15 +606,17 @@ export const deleteAccount = async (req: Request, res: Response) => {
     const userId = (req as any).userId as string;
     const { password } = req.body as { password?: string };
 
-    if (!password) {
-      return res.status(400).json({ error: 'Debes confirmar tu contraseña para eliminar la cuenta' });
-    }
-
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
 
-    const valid = await bcrypt.compare(password, user.password);
-    if (!valid) return res.status(401).json({ error: 'Contraseña incorrecta. No se puede eliminar la cuenta.' });
+    // Cuentas solo-Google no tienen password que confirmar — el JWT ya prueba identidad.
+    if (user.password) {
+      if (!password) {
+        return res.status(400).json({ error: 'Debes confirmar tu contraseña para eliminar la cuenta' });
+      }
+      const valid = await bcrypt.compare(password, user.password);
+      if (!valid) return res.status(401).json({ error: 'Contraseña incorrecta. No se puede eliminar la cuenta.' });
+    }
 
     // Eliminar en orden para respetar foreign keys
     await prisma.$transaction([
