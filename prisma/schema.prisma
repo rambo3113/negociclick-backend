@@ -110,6 +110,7 @@ model Business {
   ownerId       String
   owner         User            @relation(fields: [ownerId], references: [id])
   services      Service[]
+  subcategories Subcategory[]
   bookings      Booking[]
   reviews       Review[]
   businessHours       BusinessHours[]
@@ -182,6 +183,24 @@ model BusinessPhoto {
   @@map("business_photos")
 }
 
+model Subcategory {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  category    String   // matches the business/service category string
+  position    Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  businessId  String
+  business    Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  services    Service[]
+
+  @@index([businessId])
+  @@index([businessId, category])
+  @@map("subcategories")
+}
+
 model Service {
   id          String   @id @default(cuid())
   name        String
@@ -194,13 +213,16 @@ model Service {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  businessId String
-  business   Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  bookings   Booking[]
-  reports    Report[]
+  businessId    String
+  business      Business     @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  subcategoryId String?
+  subcategory   Subcategory? @relation(fields: [subcategoryId], references: [id], onDelete: SetNull)
+  bookings      Booking[]
+  reports       Report[]
 
   @@index([businessId])
   @@index([isActive])
+  @@index([subcategoryId])
   @@map("services")
 }
 

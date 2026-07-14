@@ -231,8 +231,12 @@ export const getBusinessById = async (req: Request, res: Response) => {
           }
         },
         services: {
-          where: { isActive: true }
-        },
+          where: { isActive: true },
+          orderBy: [{ createdAt: 'asc' }],
+        } as any,
+        subcategories: {
+          orderBy: [{ category: 'asc' }, { position: 'asc' }, { name: 'asc' }],
+        } as any,
         reviews: {
           include: {
             client: {

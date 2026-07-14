@@ -21,14 +21,15 @@ export const createService = async (req: Request, res: Response) => {
     const userId = (req as any).userId;
     const rawBody = req.body as {
       businessId: string; name: string; description?: string;
-      price: number; duration?: number; category: string;
+      price: number; duration?: number; category: string; subcategoryId?: string;
     };
-    const businessId  = rawBody.businessId?.trim();
-    const name        = rawBody.name?.trim();
-    const description = rawBody.description?.trim() || undefined;
-    const price       = rawBody.price;
-    const duration    = rawBody.duration;
-    const category    = rawBody.category?.trim();
+    const businessId    = rawBody.businessId?.trim();
+    const name          = rawBody.name?.trim();
+    const description   = rawBody.description?.trim() || undefined;
+    const price         = rawBody.price;
+    const duration      = rawBody.duration;
+    const category      = rawBody.category?.trim();
+    const subcategoryId = rawBody.subcategoryId?.trim() || undefined;
 
     if (!businessId || !name || !price || !category) {
       return res.status(400).json({ error: 'Faltan campos obligatorios: businessId, name, price, category' });
@@ -93,8 +94,9 @@ export const createService = async (req: Request, res: Response) => {
         price: parseFloat(String(price)),
         duration: duration ? parseInt(String(duration)) : null,
         category,
-        businessId
-      }
+        businessId,
+        ...(subcategoryId ? { subcategoryId } : {}),
+      },
     });
 
     invalidateServices(businessId);
@@ -198,13 +200,14 @@ export const updateService = async (req: Request, res: Response) => {
   try {
     const id = req.params.id as string;
     const userId = (req as any).userId;
-    const { name, description, price, duration, category, isActive } = req.body as {
+    const { name, description, price, duration, category, isActive, subcategoryId } = req.body as {
       name?: string;
       description?: string;
       price?: number;
       duration?: number;
       category?: string;
       isActive?: boolean;
+      subcategoryId?: string | null;
     };
 
     const service = await prisma.service.findUnique({
@@ -243,7 +246,8 @@ export const updateService = async (req: Request, res: Response) => {
         price: parsedPrice,
         duration: duration ? parseInt(String(duration)) : undefined,
         category: category || undefined,
-        isActive: isActive !== undefined ? isActive : undefined
+        isActive: isActive !== undefined ? isActive : undefined,
+        ...(subcategoryId !== undefined ? { subcategoryId: subcategoryId || null } : {}),
       }
     });
 
