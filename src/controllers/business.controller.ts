@@ -239,13 +239,10 @@ export const getBusinessById = async (req: Request, res: Response) => {
         } as any,
         reviews: {
           include: {
-            client: {
-              select: {
-                id: true,
-                name: true
-              }
-            }
-          }
+            client: { select: { id: true, name: true, avatar: true } }
+          },
+          orderBy: { createdAt: 'desc' as const },
+          take: 5,
         }
       }
     });
@@ -339,23 +336,32 @@ export const uploadCoverImage = async (req: Request, res: Response) => {
 };
 
 // ============================================
-// 5. ACTUALIZAR PERFIL PRO (slogan + descripción)
+// 5. ACTUALIZAR PERFIL PRO (slogan + descripción + heroBannerImageUrl)
 // ============================================
 export const updateBusinessProfile = async (req: Request, res: Response) => {
   try {
     const id = req.params.id as string;
     const userId = (req as any).userId as string;
-    const { slogan, description } = req.body as { slogan?: string; description?: string };
+    const { slogan, description, heroBannerImageUrl } = req.body as {
+      slogan?: string;
+      description?: string;
+      heroBannerImageUrl?: string | null;
+    };
 
     const business = await prisma.business.findUnique({ where: { id } });
     if (!business) return res.status(404).json({ error: 'Negocio no encontrado' });
     if (business.ownerId !== userId) return res.status(403).json({ error: 'No tienes permiso' });
+
+    if (description !== undefined && description.length > 500) {
+      return res.status(400).json({ error: 'La descripción no puede superar 500 caracteres' });
+    }
 
     const updated = await prisma.business.update({
       where: { id },
       data: {
         slogan: slogan !== undefined ? slogan : undefined,
         description: description !== undefined ? description : undefined,
+        heroBannerImageUrl: heroBannerImageUrl !== undefined ? heroBannerImageUrl : undefined,
       },
     });
 
@@ -363,6 +369,35 @@ export const updateBusinessProfile = async (req: Request, res: Response) => {
     res.json({ success: true, business: omitCulqiSecret(updated as any) });
   } catch {
     res.status(500).json({ error: 'Error al actualizar perfil' });
+  }
+};
+
+// ============================================
+// 5b. SUBIR HERO BANNER
+// ============================================
+export const uploadHeroBanner = async (req: Request, res: Response) => {
+  try {
+    const id = req.params.id as string;
+    const userId = (req as any).userId as string;
+
+    if (!req.file) return res.status(400).json({ error: 'No se recibió ningún archivo' });
+
+    const business = await prisma.business.findUnique({ where: { id } });
+    if (!business) return res.status(404).json({ error: 'Negocio no encontrado' });
+    if (business.ownerId !== userId) return res.status(403).json({ error: 'No tienes permiso' });
+
+    if (business.heroBannerImageUrl && business.heroBannerImageUrl.includes('res.cloudinary.com')) {
+      const oldPublicId = extractPublicId(business.heroBannerImageUrl);
+      if (oldPublicId) runAsync('delete-cloudinary-hero', () => deleteFromCloudinary(oldPublicId));
+    }
+
+    const { url: heroBannerImageUrl } = await uploadToCloudinary(req.file.buffer);
+    await prisma.business.update({ where: { id }, data: { heroBannerImageUrl } });
+
+    invalidateBusiness(id);
+    res.json({ success: true, heroBannerImageUrl });
+  } catch {
+    res.status(500).json({ error: 'Error al subir el hero banner' });
   }
 };
 

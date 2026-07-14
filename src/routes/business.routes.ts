@@ -9,7 +9,9 @@ import {
   getMyBusinesses,
   uploadCoverImage,
   updateBusinessProfile,
+  uploadHeroBanner,
 } from '../controllers/business.controller';
+import { getReviewsByBusiness, createBusinessReview } from '../controllers/review.controller';
 import {
   getPaymentConfig,
   upsertPaymentConfig,
@@ -36,6 +38,9 @@ router.post('/', authenticate, createBusiness);
 router.put('/:id', authenticate, updateBusiness);
 router.put('/:id/profile', authenticate, updateBusinessProfile);
 router.post('/:id/cover', authenticate, upload.single('cover'), uploadCoverImage);
+router.post('/:id/hero', authenticate, upload.single('hero'), uploadHeroBanner);
+router.get('/:id/reviews', getReviewsByBusiness);
+router.post('/:id/reviews', authenticate, createBusinessReview);
 router.delete('/:id', authenticate, deleteBusiness);
 
 // Cobros por negocio

@@ -92,11 +92,77 @@ export const createReview = async (req: Request, res: Response) => {
 };
 
 // ============================================
+// 1b. CREAR RESEÑA VÍA RUTA /businesses/:id/reviews
+//     No requiere bookingId en body — busca automáticamente
+// ============================================
+export const createBusinessReview = async (req: Request, res: Response) => {
+  try {
+    const clientId = (req as any).userId as string;
+    const businessId = String(req.params.id);
+    const { rating, comment } = req.body as { rating: number; comment?: string };
+
+    if (!rating) return res.status(400).json({ error: 'El campo rating es obligatorio' });
+    if (!Number.isInteger(Number(rating)) || rating < 1 || rating > 5) {
+      return res.status(400).json({ error: 'El rating debe ser un número entero entre 1 y 5' });
+    }
+    if (comment && comment.length > 500) {
+      return res.status(400).json({ error: 'El comentario no puede superar 500 caracteres' });
+    }
+
+    const business = await prisma.business.findUnique({ where: { id: businessId } });
+    if (!business) return res.status(404).json({ error: 'Negocio no encontrado' });
+
+    // El dueño no puede reseñar su propio negocio
+    if (business.ownerId === clientId) {
+      return res.status(403).json({ error: 'No puedes reseñar tu propio negocio' });
+    }
+
+    // Ya existe una reseña de este usuario para este negocio
+    const existingReview = await prisma.review.findFirst({ where: { businessId, clientId } });
+    if (existingReview) {
+      return res.status(409).json({ error: 'Ya dejaste una reseña para este negocio' });
+    }
+
+    // Buscar un booking completado y sin reseña de este cliente para este negocio
+    const booking = await prisma.booking.findFirst({
+      where: {
+        clientId,
+        businessId,
+        status: 'COMPLETED',
+        review: null,
+      },
+    });
+    if (!booking) {
+      return res.status(403).json({ error: 'Necesitas completar una reserva para dejar una reseña' });
+    }
+
+    const review = await prisma.review.create({
+      data: {
+        rating: Number(rating),
+        comment: comment?.trim() || null,
+        clientId,
+        businessId,
+        bookingId: booking.id,
+      },
+      include: { client: { select: { name: true, avatar: true } } },
+    });
+
+    runAsync('recalculate-rating', () => recalculateBusinessRating(businessId));
+    invalidateReviews(businessId);
+
+    res.status(201).json({ success: true, review });
+  } catch (error: any) {
+    console.error('Error al crear reseña:', error);
+    res.status(500).json({ error: 'Error al crear reseña' });
+  }
+};
+
+// ============================================
 // 2. RESEÑAS DE UN NEGOCIO (público)
 // ============================================
 export const getReviewsByBusiness = async (req: Request, res: Response) => {
   try {
-    const businessId = req.params.businessId as string;
+    const businessId = (req.params.businessId ?? req.params.id) as string;
     const page  = Math.max(1, parseInt((req.query.page  as string) || '1'));
     const limit = Math.min(50, Math.max(1, parseInt((req.query.limit as string) || '10')));
     const skip  = (page - 1) * limit;

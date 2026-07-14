@@ -91,7 +91,8 @@ model Business {
   email        String?
   slogan       String?
   logo         String?
-  coverImage   String?
+  coverImage         String?
+  heroBannerImageUrl String?
   isActive     Boolean  @default(true)
   status       String   @default("active")   // active | suspended
   featured     Boolean  @default(false)
