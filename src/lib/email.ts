@@ -519,6 +519,58 @@ export async function sendBookingRescheduledToVendor(opts: {
   `));
 }
 
+// ── 14a. Destacado activado (1ª vez) → vendor ───────────────────────────────
+export async function sendFeaturedActivated(opts: {
+  email: string;
+  name: string;
+  businessName: string;
+  durationDays: number;
+  featuredUntil: Date;
+}) {
+  const until = opts.featuredUntil.toLocaleDateString('es-PE', { day: '2-digit', month: 'long', year: 'numeric' });
+  await send(opts.email, `⭐ ¡${opts.businessName} ahora está Destacado!`, base(`
+    <div style="text-align:center;margin-bottom:24px;">
+      <div style="display:inline-block;background-color:#FEF3C7;border-radius:50%;width:72px;height:72px;line-height:72px;font-size:36px;">⭐</div>
+    </div>
+    ${heading('¡Ahora estás destacado!', `Hola <strong>${opts.name}</strong>, tu negocio <strong>${opts.businessName}</strong> ahora aparecerá primero en los resultados con un badge dorado.`)}
+    ${dataTable(
+      dataRow('Período', `${opts.durationDays} días`) +
+      dataRow('Destacado hasta', until, { last: true, valueColor: '#4F46E5' })
+    )}
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#ECFDF5;border:1px solid #A7F3D0;border-radius:12px;margin:16px 0;">
+      <tr><td style="padding:16px 20px;">
+        <p style="margin:0;font-size:14px;color:#065F46;font-family:Arial,Helvetica,sans-serif;">
+          ✨ Más visibilidad = más reservas. ¡Mucho éxito con tu negocio!
+        </p>
+      </td></tr>
+    </table>
+    ${ctaButton(`${APP_URL}/dashboard/promocion`, 'Ver mi destacado')}
+  `));
+}
+
+// ── 14b. Destacado extendido → vendor ───────────────────────────────────────
+export async function sendFeaturedExtended(opts: {
+  email: string;
+  name: string;
+  businessName: string;
+  extraDays: number;
+  featuredUntil: Date;
+}) {
+  const until = opts.featuredUntil.toLocaleDateString('es-PE', { day: '2-digit', month: 'long', year: 'numeric' });
+  await send(opts.email, `✓ Tu destacado se extendió — ${opts.businessName}`, base(`
+    <div style="text-align:center;margin-bottom:24px;">
+      <div style="display:inline-block;background-color:#ECFDF5;border-radius:50%;width:72px;height:72px;line-height:72px;font-size:36px;">✅</div>
+    </div>
+    ${heading('¡Tu destacado se extendió!', `Hola <strong>${opts.name}</strong>, sumaste <strong>${opts.extraDays} días más</strong> de visibilidad para <strong>${opts.businessName}</strong>.`)}
+    ${dataTable(
+      dataRow('Días agregados', `+${opts.extraDays} días`) +
+      dataRow('Nueva fecha de vencimiento', until, { last: true, valueColor: '#4F46E5', big: true })
+    )}
+    ${ctaButton(`${APP_URL}/dashboard/promocion`, 'Ver mi destacado')}
+    ${footNote('Seguirás apareciendo primero en los resultados hasta esa fecha.')}
+  `));
+}
+
 // ── 14. Destacado vence pronto → vendor ─────────────────────────────────────
 export async function sendFeaturedExpiring(opts: {
   email: string;
@@ -562,7 +614,7 @@ export async function sendFeaturedExpired(opts: {
       <tr><td style="padding:16px 20px;">
         <p style="margin:0 0 8px;font-size:14px;color:#111827;font-weight:600;font-family:Arial,Helvetica,sans-serif;">¿Quieres volver a destacarte?</p>
         <p style="margin:0;font-size:14px;color:#6B7280;font-family:Arial,Helvetica,sans-serif;">
-          Desde S/ 19.90 por 7 días · S/ 34.90 por 15 días · S/ 59.90 por 30 días
+          Desde S/ 9.90 por 7 días · S/ 19.90 por 15 días · S/ 29.90 por 30 días
         </p>
       </td></tr>
     </table>

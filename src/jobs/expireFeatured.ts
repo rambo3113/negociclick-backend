@@ -9,13 +9,15 @@ export function startExpireFeatured() {
     try {
       const now  = new Date();
       const from = new Date(now.getTime() + 2 * 86_400_000);
-      const to   = new Date(now.getTime() + 3 * 86_400_000);
+      const to   = new Date(now.getTime() + 4 * 86_400_000);
 
+      // Only businesses where reminder hasn't been sent yet for this period
       const expiringSoon = await prisma.business.findMany({
         where: {
           featured: true,
           featuredUntil: { gte: from, lte: to },
-        },
+          featuredReminderSentAt: null,
+        } as any,
         include: { owner: { select: { email: true, name: true } } },
       });
 
@@ -28,6 +30,12 @@ export function startExpireFeatured() {
           featuredUntil: biz.featuredUntil!,
           daysLeft,
         }).catch(() => {});
+
+        // Mark reminder as sent so we don't double-email
+        await prisma.business.update({
+          where: { id: biz.id },
+          data:  { featuredReminderSentAt: now } as any,
+        });
       }
 
       if (expiringSoon.length > 0) {
@@ -54,7 +62,7 @@ export function startExpireFeatured() {
       for (const biz of expired) {
         await prisma.business.update({
           where: { id: biz.id },
-          data:  { featured: false, featuredUntil: null },
+          data:  { featured: false, featuredUntil: null, featuredReminderSentAt: null } as any,
         });
 
         await sendFeaturedExpired({
