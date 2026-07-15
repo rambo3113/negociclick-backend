@@ -13,6 +13,14 @@ import {
   updateUserRole,
   getFeaturedPaymentsAdmin,
 } from '../controllers/admin.controller';
+import {
+  grantTrial,
+  revokeTrial,
+  getTrials,
+  getTrialStats,
+  getBusinessTrials,
+  extendTrial,
+} from '../controllers/trials.controller';
 import { authenticate } from '../middleware/auth.middleware';
 import { requireAdmin } from '../middleware/admin.middleware';
 import { validate } from '../middleware/validate.middleware';
@@ -34,5 +42,13 @@ router.get('/reports',                        getAdminReports);
 router.post('/reports/:id/resolve',           resolveReport);
 router.get('/logs',                           getAdminLogs);
 router.get('/featured-payments',              getFeaturedPaymentsAdmin);
+
+// ── Trials manuales ───────────────────────────────────────────────────────────
+router.get('/trials/stats',                   getTrialStats);
+router.get('/trials/:businessId',             getBusinessTrials);
+router.get('/trials',                         getTrials);
+router.post('/trials/grant',                  grantTrial);
+router.post('/trials/revoke',                 revokeTrial);
+router.post('/trials/extend',                 extendTrial);
 
 export default router;

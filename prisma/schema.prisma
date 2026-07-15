@@ -312,6 +312,10 @@ model Subscription {
   price          Decimal  @db.Decimal(10, 2)
   culqiChargeId  String?                      // ID del cobro en Culqi para refunds
   isTrial        Boolean  @default(false)     // true = trial gratuito de 14 días
+  isManualTrial  Boolean  @default(false)     // true = asignado manualmente por admin
+  trialGrantedAt DateTime?                    // cuándo lo asignó el admin
+  trialGrantedBy String?                      // userId del admin que lo asignó
+  trialReason    String?                      // ej: "acquisition_pedidosya"
   startDate      DateTime @default(now())
   endDate        DateTime?
   autoRenew      Boolean  @default(true)

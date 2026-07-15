@@ -813,3 +813,117 @@ export async function sendNewReviewToVendor(opts: {
     ${ctaButton(`${APP_URL}/dashboard`, 'Ver reseñas')}
   `));
 }
+
+// ── TRIAL MANUAL (admin) ─────────────────────────────────────────────────────
+
+// NOTIF 1 — Trial asignado
+export async function sendTrialGranted(opts: {
+  email: string;
+  name: string;
+  businessName: string;
+  plan: string;
+  durationDays: number;
+  endDate: Date;
+}) {
+  const until = opts.endDate.toLocaleDateString('es-PE', { day: '2-digit', month: 'long', year: 'numeric' });
+  const planMeta = opts.plan === 'PREMIUM'
+    ? { emoji: '✨', color: '#F59E0B', label: 'PREMIUM' }
+    : { emoji: '👑', color: '#6366F1', label: 'PRO' };
+
+  await send(opts.email, `🎉 ¡Prueba gratis de NegociClick ${planMeta.label}! — ${opts.businessName}`, base(`
+    <div style="text-align:center;margin-bottom:24px;">
+      <div style="display:inline-block;background-color:#ECFDF5;border-radius:50%;width:72px;height:72px;line-height:72px;font-size:36px;">🎉</div>
+    </div>
+    ${heading(`¡Prueba gratis de NegociClick!`, `Hola <strong>${opts.name}</strong>, tu negocio <strong>${opts.businessName}</strong> tiene acceso gratuito al plan <strong>${planMeta.label}</strong>.`)}
+    ${dataTable(
+      dataRow('Plan', `${planMeta.emoji} ${planMeta.label}`, { valueColor: planMeta.color }) +
+      dataRow('Período', `${opts.durationDays} días`) +
+      dataRow('Acceso hasta', until, { last: true, valueColor: '#4F46E5', big: true })
+    )}
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#ECFDF5;border:1px solid #A7F3D0;border-radius:12px;margin:16px 0;">
+      <tr><td style="padding:16px 20px;">
+        <p style="margin:0 0 8px;font-size:14px;font-weight:700;color:#065F46;font-family:Arial,Helvetica,sans-serif;">Con tu prueba puedes:</p>
+        <p style="margin:0;font-size:14px;color:#065F46;font-family:Arial,Helvetica,sans-serif;line-height:1.8;">
+          ✓ Recibir reservas y pedidos online<br/>
+          ✓ Notificaciones automáticas a tus clientes<br/>
+          ✓ 0% comisión en tus ventas<br/>
+          ✓ Dashboard de agenda y estadísticas
+        </p>
+      </td></tr>
+    </table>
+    ${ctaButton(`${APP_URL}/dashboard`, 'Acceder a NegociClick')}
+  `));
+}
+
+// NOTIF 2 — Trial vence en 3 días
+export async function sendTrialExpiring(opts: {
+  email: string;
+  name: string;
+  businessName: string;
+  plan: string;
+  daysRemaining: number;
+  endDate: Date;
+}) {
+  const until = opts.endDate.toLocaleDateString('es-PE', { day: '2-digit', month: 'long', year: 'numeric' });
+  const proPrice     = '29.90';
+  const premiumPrice = '59.90';
+
+  await send(opts.email, `⏰ Tu período de prueba vence en ${opts.daysRemaining} días — ${opts.businessName}`, base(`
+    <div style="text-align:center;margin-bottom:24px;">
+      <div style="display:inline-block;background-color:#FEF3C7;border-radius:50%;width:64px;height:64px;line-height:64px;font-size:32px;">⏰</div>
+    </div>
+    ${heading(`Tu período de prueba vence en ${opts.daysRemaining} ${opts.daysRemaining === 1 ? 'día' : 'días'}`, `Hola <strong>${opts.name}</strong>, tu prueba de <strong>${opts.plan}</strong> en ${opts.businessName} vence el <strong>${until}</strong>.`)}
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#FFFBEB;border:1px solid #FDE68A;border-radius:12px;margin-bottom:16px;">
+      <tr><td style="padding:16px 20px;">
+        <p style="margin:0 0 4px;font-size:14px;font-weight:700;color:#92400E;font-family:Arial,Helvetica,sans-serif;">¿Te gustó NegociClick?</p>
+        <p style="margin:0;font-size:14px;color:#92400E;font-family:Arial,Helvetica,sans-serif;">
+          Continúa con <strong>PRO</strong> por S/ ${proPrice}/mes o <strong>PREMIUM</strong> por S/ ${premiumPrice}/mes.
+        </p>
+      </td></tr>
+    </table>
+    ${ctaButton(`${APP_URL}/subscription`, 'Comprar suscripción')}
+    ${footNote('Si no renuevas, tu negocio pasará a plan FREE automáticamente.')}
+  `));
+}
+
+// NOTIF 3 — Trial expirado
+export async function sendTrialExpired(opts: {
+  email: string;
+  name: string;
+  businessName: string;
+  plan: string;
+}) {
+  await send(opts.email, `Tu período de prueba expiró — ${opts.businessName}`, base(`
+    ${heading('Tu período de prueba expiró', `Hola <strong>${opts.name}</strong>, el acceso gratuito de <strong>${opts.businessName}</strong> al plan <strong>${opts.plan}</strong> ha vencido.`)}
+    <p style="margin:0 0 16px;color:#6B7280;font-size:14px;font-family:Arial,Helvetica,sans-serif;">
+      Tu negocio pasó a plan <strong>FREE</strong>. Puedes seguir recibiéndote en la plataforma,
+      pero las reservas online requieren un plan de pago.
+    </p>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#F9FAFB;border:1px solid #E5E7EB;border-radius:12px;margin-bottom:8px;">
+      <tr><td style="padding:16px 20px;">
+        <p style="margin:0 0 8px;font-size:14px;font-weight:700;color:#111827;font-family:Arial,Helvetica,sans-serif;">Continúa con:</p>
+        <p style="margin:0;font-size:14px;color:#6B7280;font-family:Arial,Helvetica,sans-serif;line-height:1.8;">
+          👑 PRO — S/ 29.90/mes (reservas, notificaciones, agenda)<br/>
+          ✨ PREMIUM — S/ 59.90/mes (todo PRO + cobro online con Culqi)
+        </p>
+      </td></tr>
+    </table>
+    ${ctaButton(`${APP_URL}/subscription`, 'Upgrade a PRO')}
+  `));
+}
+
+// NOTIF 4 — Trial revocado por admin
+export async function sendTrialRevoked(opts: {
+  email: string;
+  name: string;
+  businessName: string;
+  plan: string;
+}) {
+  await send(opts.email, `Tu período de prueba fue cancelado — ${opts.businessName}`, base(`
+    ${heading('Tu período de prueba fue cancelado', `Hola <strong>${opts.name}</strong>, el acceso de prueba de <strong>${opts.businessName}</strong> al plan <strong>${opts.plan}</strong> fue cancelado por el equipo de NegociClick.`)}
+    <p style="margin:0 0 16px;color:#6B7280;font-size:14px;font-family:Arial,Helvetica,sans-serif;">
+      Tu negocio vuelve al plan <strong>FREE</strong>. Si tienes dudas, contáctanos.
+    </p>
+    ${ctaButton(`https://wa.me/51983081196`, 'Contactar soporte')}
+  `));
+}
