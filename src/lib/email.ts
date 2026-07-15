@@ -691,3 +691,73 @@ export async function sendOrderStatusUpdateToClient(opts: {
     ${ctaButton(`${APP_URL}/bookings`, 'Ver mi pedido')}
   `));
 }
+
+// ── 9. Reserva/pedido creado → cliente (confirmación inmediata) ──────────────
+export async function sendBookingCreatedToClient(opts: {
+  clientEmail: string;
+  clientName: string;
+  serviceName: string;
+  businessName: string;
+  businessPhone: string;
+  date: Date;
+  amount: number;
+  orderMode: OrderMode;
+  notes?: string | null;
+  deliveryAddress?: string | null;
+}) {
+  const parsed = parseOrderNotes(opts.notes);
+  const isOrder = opts.orderMode === 'ORDER';
+  const emoji = isOrder ? '🛒' : '📅';
+  const title = isOrder ? '¡Tu pedido fue recibido!' : '¡Tu cita fue agendada!';
+  const subtitle = isOrder
+    ? `Tu pedido en <strong>${opts.businessName}</strong> fue recibido y está pendiente de confirmación.`
+    : `Tu cita en <strong>${opts.businessName}</strong> fue registrada y está pendiente de confirmación.`;
+
+  const rows = [
+    dataRow('Servicio', opts.serviceName),
+    dataRow('Negocio', opts.businessName),
+    dataRow(isOrder ? 'Fecha estimada' : 'Fecha y hora', isOrder ? dateOnly(opts.date) : dateTime(opts.date)),
+    ...(opts.deliveryAddress ? [dataRow('Dirección de entrega', opts.deliveryAddress)] : []),
+    dataRow('Total', `S/ ${opts.amount.toFixed(2)}`, { last: true, big: true, valueColor: '#4F46E5' }),
+  ].join('');
+
+  const itemsBlock = isOrder && parsed.items.length > 0
+    ? `<p style="margin:16px 0 4px;font-size:13px;font-weight:700;color:#374151;">Detalle del pedido:</p>${itemsTable(parsed.items)}`
+    : '';
+
+  await send(opts.clientEmail, `${emoji} ${title} — ${opts.businessName}`, base(`
+    <div style="text-align:center;margin-bottom:24px;">
+      <div style="display:inline-block;background-color:#EDE9FE;border-radius:50%;width:64px;height:64px;line-height:64px;font-size:32px;">${emoji}</div>
+    </div>
+    ${heading(title, `Hola <strong>${opts.clientName}</strong>, ${subtitle}`)}
+    ${dataTable(rows)}
+    ${itemsBlock}
+    ${ctaButton(`${APP_URL}/dashboard/mis-pedidos`, 'Ver mis pedidos')}
+    ${footNote(`¿Necesitas ayuda? Contacta al negocio: ${opts.businessPhone}`)}
+  `));
+}
+
+// ── 10. Nueva reseña recibida → vendor ──────────────────────────────────────
+export async function sendNewReviewToVendor(opts: {
+  vendorEmail: string;
+  vendorName: string;
+  businessName: string;
+  clientName: string;
+  rating: number;
+  comment?: string | null;
+}) {
+  const stars = '⭐'.repeat(Math.min(5, Math.max(1, opts.rating)));
+  await send(opts.vendorEmail, `⭐ Nueva reseña en ${opts.businessName}`, base(`
+    <div style="text-align:center;margin-bottom:24px;">
+      <div style="display:inline-block;background-color:#FEF3C7;border-radius:50%;width:64px;height:64px;line-height:64px;font-size:32px;">⭐</div>
+    </div>
+    ${heading('¡Tienes una nueva reseña!', `Hola <strong>${opts.vendorName}</strong>, <strong>${opts.clientName}</strong> dejó una reseña en tu negocio.`)}
+    ${dataTable([
+      dataRow('Negocio', opts.businessName),
+      dataRow('Cliente', opts.clientName),
+      dataRow('Calificación', `${stars} (${opts.rating}/5)`, { last: !opts.comment }),
+      ...(opts.comment ? [dataRow('Comentario', opts.comment, { last: true })] : []),
+    ].join(''))}
+    ${ctaButton(`${APP_URL}/dashboard`, 'Ver reseñas')}
+  `));
+}

@@ -145,9 +145,13 @@ export const chargePayment = async (req: Request, res: Response) => {
         }),
         prisma.booking.update({
           where: { id: payment.bookingId },
-          data: { status: 'CONFIRMED' },
+          data: { status: 'CONFIRMED', paymentConfirmedAt: new Date() },
         }),
       ]);
+      // Timeline entry (fire-and-forget, outside transaction)
+      (prisma as any).bookingTimeline.create({
+        data: { bookingId: payment.bookingId, event: 'PAYMENT_CONFIRMED', description: 'Pago confirmado', actor: 'system' },
+      }).catch(() => {});
     } catch (dbErr: any) {
       // providerId es único: si este charge.id ya está registrado en otro pago
       // (no debería pasar — cada charge es de un solo booking — pero por las

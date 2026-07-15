@@ -1,7 +1,17 @@
 import { Request, Response } from 'express';
 import { Prisma } from '@prisma/client';
 import prisma from '../lib/prisma';
-import { sendBookingCreatedToVendor, sendBookingCancelledToClient, sendBookingCancelledToVendor, sendPaymentReceivedToVendor, sendReviewReminderToClient, sendBookingRescheduledToVendor, sendOrderStatusUpdateToClient } from '../lib/email';
+import { sendBookingCreatedToVendor, sendBookingCancelledToClient, sendBookingCancelledToVendor, sendPaymentReceivedToVendor, sendReviewReminderToClient, sendBookingRescheduledToVendor, sendOrderStatusUpdateToClient, sendBookingCreatedToClient } from '../lib/email';
+
+async function addTimeline(bookingId: string, event: string, description?: string, actor?: string) {
+  try {
+    await (prisma as any).bookingTimeline.create({
+      data: { bookingId, event, description: description ?? null, actor: actor ?? 'system' },
+    });
+  } catch (e) {
+    console.error('[timeline] error:', e);
+  }
+}
 
 // Extrae hora/minuto/día de semana de un Date en zona horaria de Lima (UTC-5, sin DST)
 function toLimaTimeParts(date: Date): { dayOfWeek: number; hour: number; minute: number } {
@@ -206,7 +216,10 @@ export const createBooking = async (req: Request, res: Response) => {
       throw txErr;
     }
 
-    // Email al vendor (sin await para no bloquear la respuesta)
+    // Timeline: booking created
+    addTimeline(booking.id, 'CREATED', `Reserva creada por ${booking.client.name}`, 'client');
+
+    // Email al vendor (fire-and-forget)
     const vendor = await prisma.user.findUnique({ where: { id: service.business.ownerId }, select: { email: true, name: true } });
     if (vendor) {
       sendBookingCreatedToVendor({
@@ -222,6 +235,20 @@ export const createBooking = async (req: Request, res: Response) => {
         deliveryAddress: booking.deliveryAddress,
       }).catch(() => {});
     }
+
+    // Email al cliente (confirmación de reserva)
+    sendBookingCreatedToClient({
+      clientEmail: booking.client.email,
+      clientName: booking.client.name,
+      serviceName: booking.service.name,
+      businessName: booking.business.name,
+      businessPhone: booking.business.phone,
+      date: booking.date,
+      amount: Number(booking.totalAmount),
+      orderMode: booking.business.orderMode as 'APPOINTMENT' | 'ORDER',
+      notes: booking.notes,
+      deliveryAddress: booking.deliveryAddress,
+    }).catch(() => {});
 
     res.status(201).json({
       success: true,
@@ -457,10 +484,19 @@ export const updateBookingStatus = async (req: Request, res: Response) => {
       });
     }
 
+    const now = new Date();
+    const timestampData: Record<string, Date> = {};
+    if (status === 'COMPLETED') timestampData.completedAt = now;
+    if (status === 'CANCELLED') timestampData.cancelledAt = now;
+
     const updatedBooking = await prisma.booking.update({
       where: { id },
-      data: { status }
+      data: { status, ...timestampData },
     });
+
+    // Timeline entry
+    addTimeline(id, status === 'CANCELLED' ? 'CANCELLED' : status === 'COMPLETED' ? 'COMPLETED' : 'STATUS_UPDATED',
+      `Estado cambiado a ${status}`, 'vendor');
 
     // Notificar al cliente cuando el vendor cancela su reserva
     if (status === 'CANCELLED') {
@@ -715,8 +751,10 @@ export const cancelBooking = async (req: Request, res: Response) => {
         service:  { select: { name: true } },
         business: { select: { name: true } },
       },
-      data: { status: 'CANCELLED' }
+      data: { status: 'CANCELLED', cancelledAt: new Date() },
     });
+
+    addTimeline(id, 'CANCELLED', 'Reserva cancelada por el cliente', 'client');
 
     sendBookingCancelledToClient({
       clientEmail:  updatedBooking.client.email,
@@ -1075,5 +1113,39 @@ export const getAvailableSlots = async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error('Error al obtener slots:', error);
     res.status(500).json({ error: 'Error al obtener slots disponibles' });
+  }
+};
+
+// ============================================
+// 12. TIMELINE DE UNA RESERVA
+// GET /api/bookings/:id/timeline
+// ============================================
+export const getBookingTimeline = async (req: Request, res: Response) => {
+  try {
+    const id     = req.params.id as string;
+    const userId = (req as any).userId as string;
+    const role   = (req as any).userRole as string;
+
+    const booking = await prisma.booking.findUnique({
+      where: { id },
+      select: { clientId: true, businessId: true, business: { select: { ownerId: true } } },
+    });
+    if (!booking) return res.status(404).json({ error: 'Reserva no encontrada' });
+
+    const isOwner  = booking.business.ownerId === userId;
+    const isClient = booking.clientId === userId;
+    if (!isOwner && !isClient && role !== 'ADMIN') {
+      return res.status(403).json({ error: 'No tienes permiso para ver este timeline' });
+    }
+
+    const timeline = await (prisma as any).bookingTimeline.findMany({
+      where: { bookingId: id },
+      orderBy: { timestamp: 'asc' },
+    });
+
+    res.json({ success: true, timeline });
+  } catch (error: any) {
+    console.error('Error al obtener timeline:', error);
+    res.status(500).json({ error: 'Error al obtener timeline' });
   }
 };

@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import prisma from '../lib/prisma';
 import { cacheGet, cacheSet, cacheKey, TTL, invalidateReviews } from '../lib/cache';
 import { runAsync } from '../lib/asyncTask';
+import { sendNewReviewToVendor } from '../lib/email';
 
 // Recalcula y guarda el rating promedio del negocio
 async function recalculateBusinessRating(businessId: string) {
@@ -149,6 +150,29 @@ export const createBusinessReview = async (req: Request, res: Response) => {
 
     runAsync('recalculate-rating', () => recalculateBusinessRating(businessId));
     invalidateReviews(businessId);
+
+    // Email al dueño + timeline (fire-and-forget)
+    prisma.business.findUnique({ where: { id: businessId }, select: { ownerId: true, name: true } })
+      .then(biz => {
+        if (!biz) return;
+        return prisma.user.findUnique({ where: { id: biz.ownerId }, select: { email: true, name: true } })
+          .then(owner => {
+            if (owner) {
+              sendNewReviewToVendor({
+                vendorEmail:  owner.email,
+                vendorName:   owner.name,
+                businessName: biz.name,
+                clientName:   review.client.name,
+                rating:       review.rating,
+                comment:      review.comment ?? null,
+              }).catch(() => {});
+            }
+          });
+      }).catch(() => {});
+
+    (prisma as any).bookingTimeline.create({
+      data: { bookingId: booking.id, event: 'REVIEW_LEFT', description: `Reseña de ${rating} estrellas`, actor: 'client' },
+    }).catch(() => {});
 
     res.status(201).json({ success: true, review });
   } catch (error: any) {

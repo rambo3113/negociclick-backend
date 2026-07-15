@@ -11,6 +11,7 @@ import {
   getEarnings,
   getAgenda,
   getAvailableSlots,
+  getBookingTimeline,
 } from '../controllers/booking.controller';
 import { authenticate } from '../middleware/auth.middleware';
 import { validate } from '../middleware/validate.middleware';
@@ -30,6 +31,7 @@ router.get('/business/:businessId', getBookingsByBusiness);
 router.get('/business/:businessId/earnings', getEarnings);
 router.get('/business/:businessId/agenda',  getAgenda);
 router.get('/:id', getBookingById);
+router.get('/:id/timeline', getBookingTimeline);
 router.put('/:id/status', updateBookingStatus);
 router.put('/:id/reschedule', rescheduleBooking);
 router.post('/:id/mark-paid', markAsPaid);

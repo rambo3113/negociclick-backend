@@ -236,6 +236,9 @@ model Booking {
   vendorAmount Decimal  @db.Decimal(10, 2)
   notes        String?
   deliveryAddress String? // solo para negocios ORDER (pedidos con entrega)
+  paymentConfirmedAt DateTime?
+  completedAt        DateTime?
+  cancelledAt        DateTime?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -247,6 +250,7 @@ model Booking {
   service    Service  @relation(fields: [serviceId], references: [id])
   payment    Payment?
   review     Review?
+  timeline   BookingTimeline[]
 
   @@index([clientId])
   @@index([businessId])
@@ -256,6 +260,21 @@ model Booking {
   @@index([businessId, date, status])  // conflicto: status IN [PENDING,CONFIRMED] + fecha
   @@index([clientId, status])          // historial de reservas del cliente por estado
   @@map("bookings")
+}
+
+model BookingTimeline {
+  id          String   @id @default(cuid())
+  event       String   // CREATED | PAYMENT_CONFIRMED | STATUS_UPDATED | CANCELLED | COMPLETED | REVIEW_LEFT
+  description String?
+  actor       String   @default("system") // "client" | "vendor" | "system"
+  timestamp   DateTime @default(now())
+
+  bookingId String
+  booking   Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@index([bookingId])
+  @@index([bookingId, timestamp])
+  @@map("booking_timeline")
 }
 
 model Payment {
