@@ -237,6 +237,13 @@ model Booking {
   vendorAmount Decimal  @db.Decimal(10, 2)
   notes        String?
   deliveryAddress String? // solo para negocios ORDER (pedidos con entrega)
+  
+  // DELIVERY SYSTEM — ULTRA SIMPLE
+  deliveryMethod    String? // 'pickup' | 'delivery'
+  deliveryZoneName  String? // ej: "Miraflores"
+  deliveryCost      Decimal? @db.Decimal(10, 2)
+  deliveryStatus    String? // 'PENDING' | 'CONFIRMED' | 'IN_TRANSIT' | 'DELIVERED' | 'CANCELLED'
+  
   paymentConfirmedAt DateTime?
   completedAt        DateTime?
   cancelledAt        DateTime?
