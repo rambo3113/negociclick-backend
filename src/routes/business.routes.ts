@@ -10,6 +10,7 @@ import {
   uploadCoverImage,
   updateBusinessProfile,
   uploadHeroBanner,
+  getDeliveryMethods,
 } from '../controllers/business.controller';
 import { getReviewsByBusiness, createBusinessReview } from '../controllers/review.controller';
 import {
@@ -30,6 +31,7 @@ const router = Router();
 router.get('/', validateQuery(searchQuerySchema), getAllBusinesses);
 router.get('/my', authenticate, getMyBusinesses);
 router.get('/:id', getBusinessById);
+router.get('/:id/delivery-methods', getDeliveryMethods);
 router.post('/:id/view', recordView);
 
 // Rutas protegidas

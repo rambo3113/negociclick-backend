@@ -34,7 +34,6 @@ import {
 import { auditHttpError } from './lib/audit';
 import availabilityRoutes from './routes/availability.routes';
 import subcategoryRoutes from './routes/subcategory.routes';
-import deliverySimpleRoutes from './routes/delivery.simple.routes';
 
 dotenv.config();
 
@@ -164,7 +163,6 @@ app.use('/api/businesses/:id/hours', hoursRoutes);
 app.use('/api/businesses/:id/photos', photosRoutes);
 app.use('/api/businesses/:id/availability', availabilityRoutes);
 app.use('/api/businesses/:id/subcategories', subcategoryRoutes);
-app.use('/api/businesses', deliverySimpleRoutes); // delivery methods
 app.use('/api/businesses', businessRoutes);
 app.use('/api/services', serviceRoutes);
 app.use('/api/bookings', bookingRoutes);
