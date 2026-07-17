@@ -543,7 +543,6 @@ export const getDeliveryMethods = async (req: Request, res: Response) => {
 
     const business = await prisma.business.findUnique({
       where: { id },
-      select: { plan: true },
     });
 
     if (!business) {
