@@ -34,6 +34,7 @@ import {
 import { auditHttpError } from './lib/audit';
 import availabilityRoutes from './routes/availability.routes';
 import subcategoryRoutes from './routes/subcategory.routes';
+import { getFeaturedBusinesses } from './controllers/featured.public.controller';
 
 dotenv.config();
 
@@ -157,6 +158,10 @@ app.use('/uploads', (_req, res, next) => {
 }, express.static(path.join(process.cwd(), 'public', 'uploads')));
 
 // ── Rutas ─────────────────────────────────────────────────────────────────────
+// Public routes
+app.get('/api/featured-businesses', getFeaturedBusinesses);
+
+// Auth and other routes
 app.use('/api/auth', authRoutes);
 app.use('/api/businesses/:id/featured', featuredRoutes);
 app.use('/api/businesses/:id/hours', hoursRoutes);
