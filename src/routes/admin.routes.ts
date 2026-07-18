@@ -21,6 +21,11 @@ import {
   getBusinessTrials,
   extendTrial,
 } from '../controllers/trials.controller';
+import {
+  assignFeaturedPlan,
+  listFeaturedPayments,
+  extendFeaturedPlan,
+} from '../controllers/admin.featured.controller';
 import { authenticate } from '../middleware/auth.middleware';
 import { requireAdmin } from '../middleware/admin.middleware';
 import { validate } from '../middleware/validate.middleware';
@@ -50,5 +55,10 @@ router.get('/trials',                         getTrials);
 router.post('/trials/grant',                  grantTrial);
 router.post('/trials/revoke',                 revokeTrial);
 router.post('/trials/extend',                 extendTrial);
+
+// ── Featured Plans manuales ───────────────────────────────────────────────────
+router.get('/featured',                       listFeaturedPayments);
+router.post('/featured',                      assignFeaturedPlan);
+router.put('/featured/:id/extend',            extendFeaturedPlan);
 
 export default router;
