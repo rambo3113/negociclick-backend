@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { prisma } from '../config/database';
+import { prisma } from '../lib/prisma';
 
 /**
  * Admin: Assign featured plan manually
