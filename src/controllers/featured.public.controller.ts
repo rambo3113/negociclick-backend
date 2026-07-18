@@ -30,10 +30,8 @@ export const getFeaturedBusinesses = async (req: Request, res: Response) => {
           select: {
             url: true,
             caption: true,
-            order: true,
           },
-          take: 1,
-          orderBy: { order: 'asc' }, // primera foto (order 0)
+          take: 1, // primera foto disponible
         },
       },
       orderBy: {
