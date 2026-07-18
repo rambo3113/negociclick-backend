@@ -29,17 +29,11 @@ export const getFeaturedBusinesses = async (req: Request, res: Response) => {
         photos: {
           select: {
             url: true,
-            altText: true,
-            isPrimary: true,
+            caption: true,
+            order: true,
           },
           take: 1,
-          orderBy: { isPrimary: 'desc' }, // primera foto o la marcada como primary
-        },
-        owner: {
-          select: {
-            name: true,
-            email: true,
-          },
+          orderBy: { order: 'asc' }, // primera foto (order 0)
         },
       },
       orderBy: {
@@ -68,8 +62,7 @@ export const getFeaturedBusinesses = async (req: Request, res: Response) => {
       address: b.address,
       orderMode: b.orderMode,
       photo: b.photos[0]?.url || null, // primera foto o null
-      photoAlt: b.photos[0]?.altText || b.name,
-      ownerName: b.owner?.name || 'Negocio',
+      photoCaption: b.photos[0]?.caption || b.name,
     }));
 
     return res.status(200).json({
