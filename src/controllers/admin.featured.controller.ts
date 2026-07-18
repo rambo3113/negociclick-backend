@@ -7,7 +7,8 @@ import prisma from '../lib/prisma';
  */
 export const assignFeaturedPlan = async (req: Request, res: Response) => {
   try {
-    const { businessId, period, days, amount, featuredUntil, reason } = req.body;
+    let { businessId, period, days, amount, featuredUntil, reason } = req.body;
+    businessId = String(businessId);
     const userId = (req as any).user?.id;
 
     // Validation
@@ -103,7 +104,7 @@ export const listFeaturedPayments = async (req: Request, res: Response) => {
  */
 export const extendFeaturedPlan = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
     const { days, newFeaturedUntil } = req.body;
 
     if (!days || !newFeaturedUntil) {
