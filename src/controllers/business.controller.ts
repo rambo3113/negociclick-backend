@@ -536,29 +536,82 @@ export const deleteBusiness = async (req: Request, res: Response) => {
   }
 };
 
-// DELIVERY SYSTEM — ULTRA SIMPLE
+// ============================================
+// DELIVERY CONFIG V2
+// ============================================
 export const getDeliveryMethods = async (req: Request, res: Response) => {
   try {
-    const methods: any = {
-      pickup: {
-        enabled: true,
-        cost: 0,
-      },
-      delivery: {
-        enabled: true,
-        zones: [
-          { id: 'miraflores', name: 'Miraflores', cost: 15 },
-          { id: 'surco', name: 'Surco', cost: 18 },
-          { id: 'la-molina', name: 'La Molina', cost: 20 },
-          { id: 'san-isidro', name: 'San Isidro', cost: 15 },
-          { id: 'breña', name: 'Breña', cost: 25 },
-        ],
-      },
+    const id = req.params.id as string;
+
+    let config = await (prisma as any).deliveryConfig.findUnique({ where: { businessId: id } });
+    if (!config) {
+      config = await (prisma as any).deliveryConfig.create({ data: { businessId: id } });
+    }
+
+    return res.json({ success: true, config });
+  } catch (error: any) {
+    console.error('Error getDeliveryMethods:', error.message);
+    return res.status(500).json({ error: 'Error al obtener métodos de delivery' });
+  }
+};
+
+export const updateDeliveryMethods = async (req: Request, res: Response) => {
+  try {
+    const id = req.params.id as string;
+    const userId = (req as any).userId as string;
+
+    const business = await prisma.business.findUnique({ where: { id } });
+    if (!business) return res.status(404).json({ error: 'Negocio no encontrado' });
+    if (business.ownerId !== userId && (req as any).userRole !== 'ADMIN') {
+      return res.status(403).json({ error: 'No tienes permisos' });
+    }
+
+    const {
+      pickupEnabled, ownDeliveryEnabled, ownDeliveryPrice,
+      ownDeliveryTimeMin, ownDeliveryTimeMax, ownDeliveryNote,
+      rappiEnabled, rappiLink, boltEnabled, boltLink,
+      glovoEnabled, glovoLink, whatsappEnabled, whatsappNumber, whatsappMessage,
+    } = req.body;
+
+    if (ownDeliveryEnabled && ownDeliveryPrice != null && Number(ownDeliveryPrice) < 0) {
+      return res.status(400).json({ error: 'Precio de delivery inválido' });
+    }
+    if (whatsappEnabled && !whatsappNumber) {
+      return res.status(400).json({ error: 'Número WhatsApp requerido' });
+    }
+    const hasAnyMethod = pickupEnabled || ownDeliveryEnabled || rappiEnabled || boltEnabled || glovoEnabled || whatsappEnabled;
+    if (!hasAnyMethod) {
+      return res.status(400).json({ error: 'Debe habilitar al menos un método de entrega' });
+    }
+
+    const data = {
+      pickupEnabled:      pickupEnabled      ?? true,
+      ownDeliveryEnabled: ownDeliveryEnabled ?? false,
+      ownDeliveryPrice:   ownDeliveryPrice   != null ? parseFloat(String(ownDeliveryPrice)) : null,
+      ownDeliveryTimeMin: ownDeliveryTimeMin ?? null,
+      ownDeliveryTimeMax: ownDeliveryTimeMax ?? null,
+      ownDeliveryNote:    ownDeliveryNote    ?? null,
+      rappiEnabled:       rappiEnabled       ?? false,
+      rappiLink:          rappiLink          ?? null,
+      boltEnabled:        boltEnabled        ?? false,
+      boltLink:           boltLink           ?? null,
+      glovoEnabled:       glovoEnabled       ?? false,
+      glovoLink:          glovoLink          ?? null,
+      whatsappEnabled:    whatsappEnabled    ?? false,
+      whatsappNumber:     whatsappNumber     ?? null,
+      whatsappMessage:    whatsappMessage    ?? null,
     };
 
-    return res.json({ success: true, methods });
-  } catch (error) {
-    console.error('Error getDeliveryMethods:', error);
-    return res.status(500).json({ error: 'Error al obtener métodos de delivery' });
+    const config = await (prisma as any).deliveryConfig.upsert({
+      where:  { businessId: id },
+      create: { businessId: id, ...data },
+      update: data,
+    });
+
+    invalidateBusiness(id);
+    return res.json({ success: true, config });
+  } catch (error: any) {
+    console.error('Error updateDeliveryMethods:', error.message);
+    return res.status(500).json({ error: 'Error al actualizar métodos de delivery' });
   }
 };

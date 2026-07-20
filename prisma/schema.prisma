@@ -120,6 +120,7 @@ model Business {
   availabilityBlocks  AvailabilityBlock[]
   featuredPayments    FeaturedPayment[]
   reports             Report[]
+  deliveryConfig      DeliveryConfig?
 
   @@index([ownerId])
   @@index([category])
@@ -133,6 +134,35 @@ model Business {
   @@index([featured, featuredUntil])   // negocios destacados vigentes
   @@map("businesses")
 
+}
+
+model DeliveryConfig {
+  id         String   @id @default(cuid())
+  businessId String   @unique
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  pickupEnabled      Boolean @default(true)
+  ownDeliveryEnabled Boolean @default(false)
+  rappiEnabled       Boolean @default(false)
+  boltEnabled        Boolean @default(false)
+  glovoEnabled       Boolean @default(false)
+  whatsappEnabled    Boolean @default(false)
+
+  ownDeliveryPrice   Decimal? @db.Decimal(10, 2)
+  ownDeliveryTimeMin Int?
+  ownDeliveryTimeMax Int?
+  ownDeliveryNote    String?
+
+  rappiLink       String?
+  boltLink        String?
+  glovoLink       String?
+  whatsappNumber  String?
+  whatsappMessage String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("delivery_configs")
 }
 
 model FeaturedPayment {
@@ -238,11 +268,15 @@ model Booking {
   notes        String?
   deliveryAddress String? // solo para negocios ORDER (pedidos con entrega)
   
-  // DELIVERY SYSTEM — ULTRA SIMPLE
-  deliveryMethod    String? // 'pickup' | 'delivery'
-  deliveryZoneName  String? // ej: "Miraflores"
+  // DELIVERY SYSTEM V2
+  deliveryMethod    String?  // 'PICKUP' | 'OWN_DELIVERY' | 'RAPPI' | 'BOLT' | 'GLOVO' | 'WHATSAPP'
+  deliveryPrice     Decimal? @db.Decimal(10, 2)
+  deliveryTimeMin   Int?
+  deliveryTimeMax   Int?
+  deliveryStatus    String?  // 'PENDING' | 'CONFIRMED' | 'IN_TRANSIT' | 'DELIVERED' | 'CANCELLED'
+  // Backward compat
+  deliveryZoneName  String?
   deliveryCost      Decimal? @db.Decimal(10, 2)
-  deliveryStatus    String? // 'PENDING' | 'CONFIRMED' | 'IN_TRANSIT' | 'DELIVERED' | 'CANCELLED'
   
   paymentConfirmedAt DateTime?
   completedAt        DateTime?
