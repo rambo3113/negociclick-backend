@@ -927,3 +927,28 @@ export async function sendTrialRevoked(opts: {
     ${ctaButton(`https://wa.me/51983081196`, 'Contactar soporte')}
   `));
 }
+
+// ── Intento de registro con email ya existente → avisa al propietario ────────
+export async function sendAccountExistsEmail(opts: {
+  email: string;
+  name: string;
+  loginUrl: string;
+  resetUrl: string;
+}) {
+  await send(opts.email, 'Intento de registro con tu correo — NegociClick', base(`
+    ${heading('Alguien intentó registrarse con tu correo', `Hola <strong>${opts.name}</strong>,`)}
+    <p style="margin:0 0 16px;color:#374151;font-size:14px;font-family:Arial,Helvetica,sans-serif;">
+      Recibimos un intento de crear una cuenta en NegociClick usando esta dirección de correo.
+      Si <strong>no fuiste tú</strong>, puedes ignorar este mensaje con tranquilidad — no se creó ninguna cuenta nueva.
+    </p>
+    <p style="margin:0 0 16px;color:#374151;font-size:14px;font-family:Arial,Helvetica,sans-serif;">
+      Si <strong>sí fuiste tú</strong>, recuerda que ya tienes una cuenta registrada con este correo.
+      Puedes iniciar sesión directamente o recuperar tu contraseña si la olvidaste.
+    </p>
+    ${ctaButton(opts.loginUrl, 'Iniciar sesión')}
+    <p style="margin:16px 0 0;text-align:center;font-family:Arial,Helvetica,sans-serif;">
+      <a href="${opts.resetUrl}" style="color:#4F46E5;font-size:13px;">¿Olvidaste tu contraseña? Recupérala aquí</a>
+    </p>
+    ${footNote('Por seguridad, este aviso se envía cada vez que alguien intenta registrarse con tu correo.')}
+  `));
+}

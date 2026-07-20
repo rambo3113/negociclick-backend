@@ -5,7 +5,7 @@ import jwt from 'jsonwebtoken';
 import { OAuth2Client } from 'google-auth-library';
 import prisma from '../lib/prisma';
 import { generateAccessToken, generateRefreshToken } from '../utils/jwt.util';
-import { sendPasswordResetEmail, sendEmailVerification, sendWelcomeVendor, sendWelcomeClient } from '../lib/email';
+import { sendPasswordResetEmail, sendEmailVerification, sendWelcomeVendor, sendWelcomeClient, sendAccountExistsEmail } from '../lib/email';
 import { audit } from '../lib/audit';
 
 const JWT_SECRET = process.env.JWT_SECRET!;
@@ -81,6 +81,11 @@ async function issueAndSendVerificationEmail(user: { id: string; email: string; 
 // 1. REGISTRO
 // ============================================
 export const register = async (req: Request, res: Response) => {
+  // Respuesta genérica — misma en todos los casos para evitar enumeración de emails.
+  // Cualquier diferencia observable (status, cuerpo, latencia) permitiría a un atacante
+  // deducir si un email ya está registrado.
+  const GENERIC_OK = { success: true, message: 'Revisa tu correo para confirmar tu cuenta.' };
+
   try {
     const { name, email, password, phone, role } = req.body as {
       name: string;
@@ -97,9 +102,19 @@ export const register = async (req: Request, res: Response) => {
     const pwdError = validatePassword(password);
     if (pwdError) return res.status(400).json({ error: pwdError });
 
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+
     const existingUser = await prisma.user.findUnique({ where: { email } });
     if (existingUser) {
-      return res.status(409).json({ error: 'Ya existe un usuario con ese email' });
+      // Anti-enumeración: notifica al propietario del correo sin revelar nada al solicitante.
+      // Fire-and-forget para que la latencia sea indistinguible del caso nuevo.
+      sendAccountExistsEmail({
+        email: existingUser.email,
+        name: existingUser.name,
+        loginUrl: `${frontendUrl}/login`,
+        resetUrl: `${frontendUrl}/forgot-password`,
+      }).catch(() => {});
+      return res.status(200).json(GENERIC_OK);
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -107,45 +122,23 @@ export const register = async (req: Request, res: Response) => {
     const safeRole = role === 'VENDOR' ? 'VENDOR' : 'CLIENT';
 
     const user = await prisma.user.create({
-      data: {
-        name,
-        email,
-        password: hashedPassword,
-        phone: phone || null,
-        role: safeRole
-      }
+      data: { name, email, password: hashedPassword, phone: phone || null, role: safeRole },
     });
 
-    const accessToken  = generateAccessToken({ userId: user.id, email: user.email, role: user.role });
-    const refreshToken = generateRefreshToken();
-    await prisma.refreshToken.create({
-      data: { token: refreshToken, userId: user.id, expiresAt: new Date(Date.now() + 7 * 86_400_000) },
-    });
     audit('REGISTER', { userId: user.id, meta: { email: user.email, role: user.role }, req });
-    // Email de bienvenida según rol (fire-and-forget)
+
+    // Fire-and-forget: responde antes de que los correos salgan — esto minimiza
+    // la diferencia de latencia con el caso "email ya existe".
     if (safeRole === 'VENDOR') {
       sendWelcomeVendor({ email: user.email, name: user.name }).catch(() => {});
     } else {
       sendWelcomeClient({ email: user.email, name: user.name }).catch(() => {});
     }
-    // Correo de verificación automático al registrarse — antes solo se enviaba
-    // si el usuario notaba y hacía clic en el aviso del dashboard.
-    issueAndSendVerificationEmail(user).catch((err) => console.error('[register] fallo al emitir verificación:', err));
+    issueAndSendVerificationEmail(user).catch((err) =>
+      console.error('[register] fallo al emitir verificación:', err)
+    );
 
-    res.status(201).json({
-      success: true,
-      message: 'Usuario registrado exitosamente',
-      token: accessToken,
-      refreshToken,
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        phone: user.phone,
-        role: user.role,
-        emailVerified: user.emailVerified
-      }
-    });
+    return res.status(200).json(GENERIC_OK);
 
   } catch (error: any) {
     console.error('Error en registro:', error);
@@ -643,7 +636,28 @@ export const verifyEmail = async (req: Request, res: Response) => {
     ]);
     console.log(`[verify-email] OK: userId=${record.userId}, emailVerified=${updatedUser.emailVerified}`);
 
-    res.json({ success: true, message: '¡Correo verificado exitosamente!' });
+    // Emite sesión para que el frontend pueda loguear al usuario sin que tenga que
+    // escribir su contraseña de nuevo — el clic en el enlace ya es prueba de identidad.
+    const accessToken  = generateAccessToken({ userId: updatedUser.id, email: updatedUser.email, role: updatedUser.role });
+    const refreshToken = generateRefreshToken();
+    await prisma.refreshToken.create({
+      data: { token: refreshToken, userId: updatedUser.id, expiresAt: new Date(Date.now() + 7 * 86_400_000) },
+    });
+
+    res.json({
+      success: true,
+      message: '¡Correo verificado exitosamente!',
+      token: accessToken,
+      refreshToken,
+      user: {
+        id: updatedUser.id,
+        email: updatedUser.email,
+        name: updatedUser.name,
+        phone: updatedUser.phone,
+        role: updatedUser.role,
+        emailVerified: updatedUser.emailVerified,
+      },
+    });
   } catch (error: any) {
     console.error(`[verify-email] ERROR inesperado (token=${token ? token.slice(0, 8) + '…' : 'ausente'}):`, error);
     res.status(500).json({ error: 'Error al verificar email' });
