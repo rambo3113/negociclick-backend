@@ -26,6 +26,7 @@ import chatRoutes from './routes/chat.routes';
 import featuredRoutes from './routes/featured.routes';
 import {
   loginLimiter,
+  loginIpLimiter,
   registerLimiter,
   searchLimiter,
   paymentLimiter,
@@ -105,12 +106,12 @@ app.use(helmet({
     },
   },
   hsts: {
-    maxAge: 31536000,
+    maxAge: 63072000, // 2 años — coherente con el frontend, requerido para HSTS preload
     includeSubDomains: true,
     preload: true,
   },
   xContentTypeOptions: true,        // X-Content-Type-Options: nosniff
-  frameguard: { action: 'sameorigin' },  // X-Frame-Options: SAMEORIGIN
+  frameguard: { action: 'deny' },   // X-Frame-Options: DENY — la API nunca debe ser embebida en un iframe
   xssFilter: true,                   // X-XSS-Protection: 1; mode=block
   referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
   permittedCrossDomainPolicies: false,
@@ -119,7 +120,7 @@ app.use(helmet({
 
 // Permissions-Policy (no incluido en Helmet v8 por defecto)
 app.use((_req, res, next) => {
-  res.setHeader('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=()');
   next();
 });
 
@@ -139,17 +140,21 @@ app.use(cors({
   maxAge: 86400,                     // preflight cacheado 24h
 }));
 
+// El parser de body debe ir ANTES de los rate limiters: loginLimiter lee
+// req.body.email en su keyGenerator para limitar por cuenta, no solo por IP.
+// Si el body llega sin parsear, ese keyGenerator cae siempre al fallback de
+// IP — el límite "por email" nunca se aplica de verdad.
+app.use(express.json({
+  verify: (req: any, _res, buf) => { req.rawBody = buf.toString('utf8'); },
+}));
+
 // Rate limiting — orden importa: específico antes que general
 // forgot-password no va aquí — ya tiene su limiter en auth.routes.ts
-app.post('/api/auth/login',    loginLimiter);
+app.post('/api/auth/login',    loginIpLimiter, loginLimiter);
 app.post('/api/auth/register', registerLimiter);
 app.get('/api/businesses',     searchLimiter);  // búsqueda pública
 app.use('/api/payments',       paymentLimiter);
 app.use('/api',                generalLimiter); // catch-all
-
-app.use(express.json({
-  verify: (req: any, _res, buf) => { req.rawBody = buf.toString('utf8'); },
-}));
 
 // ── Archivos estáticos (fotos subidas) ───────────────────────────────────────
 app.use('/uploads', (_req, res, next) => {
