@@ -65,6 +65,15 @@ export const createBooking = async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Servicio no encontrado o inactivo' });
     }
 
+    if (service.business.ownerId === clientId) {
+      return res.status(400).json({ error: 'No puedes reservar tu propio servicio' });
+    }
+
+    // ✅ VALIDAR DISPONIBILIDAD DE SLOTS
+    if (service.slots !== null && service.slots <= 0) {
+      return res.status(400).json({ error: 'Servicio agotado (sin slots disponibles)' });
+    }
+
     if (!service.business.isActive) {
       return res.status(400).json({ error: 'El negocio no está disponible' });
     }
