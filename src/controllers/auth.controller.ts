@@ -87,12 +87,13 @@ export const register = async (req: Request, res: Response) => {
   const GENERIC_OK = { success: true, message: 'Revisa tu correo para confirmar tu cuenta.' };
 
   try {
-    const { name, email, password, phone, role } = req.body as {
+    const { name, email, password, phone, role, turnstileToken } = req.body as {
       name: string;
       email: string;
       password: string;
       phone?: string;
       role?: string;
+      turnstileToken?: string;
     };
 
     if (!name || !email || !password) {
@@ -101,6 +102,33 @@ export const register = async (req: Request, res: Response) => {
 
     const pwdError = validatePassword(password);
     if (pwdError) return res.status(400).json({ error: pwdError });
+
+    // ── Cloudflare Turnstile anti-bot ────────────────────────────────────────
+    // Solo se aplica si TURNSTILE_SECRET_KEY está configurada en el entorno,
+    // lo que permite ejecutar sin CAPTCHA en desarrollo local.
+    if (process.env.TURNSTILE_SECRET_KEY) {
+      if (!turnstileToken) {
+        return res.status(400).json({ error: 'Verificación anti-bot requerida.' });
+      }
+      try {
+        const tsRes = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            secret:   process.env.TURNSTILE_SECRET_KEY,
+            response: turnstileToken,
+            remoteip: req.ip,
+          }),
+        });
+        const tsData = await tsRes.json() as { success: boolean };
+        if (!tsData.success) {
+          return res.status(400).json({ error: 'Verificación anti-bot fallida. Recarga e inténtalo de nuevo.' });
+        }
+      } catch (tsErr) {
+        console.error('[register] Turnstile siteverify error:', tsErr);
+        return res.status(503).json({ error: 'Error al verificar. Inténtalo de nuevo en un momento.' });
+      }
+    }
 
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
 

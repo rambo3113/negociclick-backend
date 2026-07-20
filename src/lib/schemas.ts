@@ -33,11 +33,12 @@ const strongPassword = z
 
 // ── Auth ─────────────────────────────────────────────────────────────────────
 export const registerSchema = z.object({
-  name:     safeText(100).refine(s => s.length >= 3, { error: 'El nombre debe tener al menos 3 caracteres' }),
-  email:    z.string().refine(v => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v), { error: 'Correo electrónico inválido' }).transform(v => v.toLowerCase().trim()).pipe(z.string().max(254)),
-  password: strongPassword,
-  phone:    peruPhone.optional(),
-  role:     z.enum(['CLIENT', 'VENDOR']).optional(),
+  name:              safeText(100).refine(s => s.length >= 3, { error: 'El nombre debe tener al menos 3 caracteres' }),
+  email:             z.string().refine(v => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v), { error: 'Correo electrónico inválido' }).transform(v => v.toLowerCase().trim()).pipe(z.string().max(254)),
+  password:          strongPassword,
+  phone:             peruPhone.optional(),
+  role:              z.enum(['CLIENT', 'VENDOR']).optional(),
+  turnstileToken:    z.string().min(1).max(2048).optional(), // Cloudflare Turnstile — validado en el controller
 });
 
 export const loginSchema = z.object({
