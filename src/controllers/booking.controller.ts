@@ -70,8 +70,14 @@ export const createBooking = async (req: Request, res: Response) => {
     }
 
     // ✅ VALIDAR DISPONIBILIDAD DE SLOTS
-    if (service.slots !== null && service.slots <= 0) {
-      return res.status(400).json({ error: 'Servicio agotado (sin slots disponibles)' });
+   
+    // ✅ BIEN (usa isActive que SÍ existe):
+    if (!service.isActive) {
+  return res.status(400).json({ error: 'Servicio no disponible' });
+    }
+
+    if (!service.business.isActive) {
+  return res.status(400).json({ error: 'El negocio no está disponible' });
     }
 
     if (!service.business.isActive) {
