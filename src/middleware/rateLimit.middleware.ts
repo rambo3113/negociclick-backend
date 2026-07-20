@@ -72,17 +72,19 @@ export const resendVerificationLimiter = rateLimit({
   message: { error: 'Espera un minuto antes de solicitar otro correo de verificación.' },
 });
 
-// ── 6. API GENERAL — 100 requests / 15 min, key = IP ────────────────────────
+// ── 6. API GENERAL — 1000 requests / 15 min, key = IP ───────────────────────
 export const generalLimiter = rateLimit({
   ...base,
   windowMs: 15 * 60 * 1000,
-  max: 100,
+  max: 1000,
   keyGenerator: (req: Request) => ip(req),
   message: { error: 'Demasiadas solicitudes. Intenta en 15 minutos.' },
   skip: (req: Request) => {
     // Health check y assets estáticos no cuentan
     if (process.env.NODE_ENV === 'test') return true;
     if (req.path === '/health') return true;
+    // GET requests son de solo lectura, sin riesgo
+    if (req.method === 'GET') return true;
     return false;
   },
 });
