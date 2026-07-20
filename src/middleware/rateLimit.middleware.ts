@@ -24,6 +24,19 @@ export const loginLimiter = rateLimit({
   skipSuccessfulRequests: true,   // solo cuenta intentos fallidos
 });
 
+// ── 1b. LOGIN por IP — 20 intentos / 15 min, key = IP ───────────────────────
+// Complementa a loginLimiter (que solo cuenta por email): sin este límite,
+// un atacante puede probar credenciales contra muchos emails distintos desde
+// la misma IP sin ser bloqueado nunca por el limiter de arriba.
+export const loginIpLimiter = rateLimit({
+  ...base,
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  keyGenerator: (req: Request) => ip(req),
+  message: { error: 'Demasiados intentos de inicio de sesión desde esta dirección. Intenta en 15 minutos.' },
+  skipSuccessfulRequests: true,
+});
+
 // ── 2. REGISTRO — 3 registros / hora, key = IP ───────────────────────────────
 export const registerLimiter = rateLimit({
   ...base,
