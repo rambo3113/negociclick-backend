@@ -1030,6 +1030,106 @@ export const getAgenda = async (req: Request, res: Response) => {
 // 11. SLOTS DISPONIBLES (público)
 // GET /api/bookings/slots/:serviceId?date=YYYY-MM-DD
 // ============================================
+type ServiceForSlots = {
+  id: string;
+  duration: number | null;
+  businessId: string;
+  isActive: boolean;
+  business: { isActive: boolean };
+};
+
+type SlotsForDateResult = {
+  date: string;
+  slots: string[];
+  available: boolean;
+  reason?: string;
+};
+
+// Lógica compartida: calcula los slots disponibles de un servicio para un día dado.
+// Usada por getAvailableSlots (un día), getAvailableSlotsMultipleDays (rango) y getCalendarAvailability (mes).
+async function getSlotsForDate(service: ServiceForSlots, dateStr: string): Promise<SlotsForDateResult> {
+  const duration = service.duration ?? 60;
+
+  // Midnight Lima en UTC: Lima = UTC-5, así que 00:00 Lima = 05:00 UTC
+  const [year, month, day] = dateStr.split('-').map(Number);
+  const dayStartUTC = new Date(Date.UTC(year, month - 1, day,     5, 0, 0));
+  const dayEndUTC   = new Date(Date.UTC(year, month - 1, day + 1, 5, 0, 0));
+
+  const { dayOfWeek } = toLimaTimeParts(dayStartUTC);
+
+  const blocked = await prisma.availabilityBlock.findFirst({
+    where: {
+      businessId: service.businessId,
+      startDate: { lte: dayEndUTC },
+      endDate:   { gte: dayStartUTC },
+    },
+  });
+  if (blocked) {
+    const reason = blocked.reason ? `El negocio no está disponible ese día: ${blocked.reason}` : 'El negocio no está disponible ese día';
+    return { date: dateStr, slots: [], available: false, reason };
+  }
+
+  const hours = await prisma.businessHours.findUnique({
+    where: { businessId_dayOfWeek: { businessId: service.businessId, dayOfWeek } },
+  });
+
+  if (!hours) {
+    return { date: dateStr, slots: [], available: false, reason: 'El negocio no ha configurado sus horarios' };
+  }
+  if (hours.isClosed) {
+    return { date: dateStr, slots: [], available: false, reason: 'El negocio está cerrado ese día' };
+  }
+
+  // Generar todos los slots posibles dentro del horario
+  const [openH, openM]   = hours.openTime.split(':').map(Number);
+  const [closeH, closeM] = hours.closeTime.split(':').map(Number);
+  const openMinutes  = openH  * 60 + openM;
+  const closeMinutes = closeH * 60 + closeM;
+
+  const allSlots: string[] = [];
+  for (let m = openMinutes; m + duration <= closeMinutes; m += duration) {
+    const h   = Math.floor(m / 60);
+    const min = m % 60;
+    allSlots.push(`${h.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}`);
+  }
+
+  // Reservas existentes en ese día
+  const existingBookings = await prisma.booking.findMany({
+    where: {
+      serviceId: service.id,
+      status: { in: ['PENDING', 'CONFIRMED'] },
+      date:   { gte: dayStartUTC, lt: dayEndUTC },
+    },
+    select: { date: true },
+  });
+
+  const now = new Date();
+
+  const slots = allSlots.filter(slot => {
+    const [slotH, slotM] = slot.split(':').map(Number);
+    const slotStart = slotH * 60 + slotM;
+    const slotEnd   = slotStart + duration;
+
+    // Descarta slots pasados (dayStartUTC es midnight Lima, +offset da el UTC del slot)
+    const slotUTC = new Date(dayStartUTC.getTime() + (slotH * 60 + slotM) * 60_000);
+    if (slotUTC <= now) return false;
+
+    // Descarta slots que solapan con reservas existentes
+    return !existingBookings.some(b => {
+      const { hour: bH, minute: bM } = toLimaTimeParts(b.date);
+      const bookedStart = bH * 60 + bM;
+      const bookedEnd   = bookedStart + duration;
+      return slotStart < bookedEnd && slotEnd > bookedStart;
+    });
+  });
+
+  return { date: dateStr, slots, available: slots.length > 0 };
+}
+
+// ============================================
+// 11. SLOTS DISPONIBLES DE UN DÍA
+// GET /api/bookings/slots/:serviceId?date=YYYY-MM-DD
+// ============================================
 export const getAvailableSlots = async (req: Request, res: Response) => {
   try {
     const serviceId = req.params.serviceId as string;
@@ -1047,87 +1147,149 @@ export const getAvailableSlots = async (req: Request, res: Response) => {
     if (!service || !service.isActive) return res.status(404).json({ error: 'Servicio no encontrado' });
     if (!service.business.isActive)    return res.status(400).json({ error: 'El negocio no está disponible' });
 
-    const duration = service.duration ?? 60;
+    const result = await getSlotsForDate(service, date);
 
-    // Midnight Lima en UTC: Lima = UTC-5, así que 00:00 Lima = 05:00 UTC
-    const [year, month, day] = date.split('-').map(Number);
-    const dayStartUTC = new Date(Date.UTC(year, month - 1, day,     5, 0, 0));
-    const dayEndUTC   = new Date(Date.UTC(year, month - 1, day + 1, 5, 0, 0));
-
-    const { dayOfWeek } = toLimaTimeParts(dayStartUTC);
-
-    // Verificar que el día no esté bloqueado por el negocio
-    const blocked = await prisma.availabilityBlock.findFirst({
-      where: {
-        businessId: service.businessId,
-        startDate: { lte: dayEndUTC },
-        endDate:   { gte: dayStartUTC },
-      },
-    });
-    if (blocked) {
-      const reason = blocked.reason ? `: ${blocked.reason}` : '';
-      return res.json({ success: true, date, slots: [], message: `El negocio no está disponible ese día${reason}` });
-    }
-
-    const hours = await prisma.businessHours.findUnique({
-      where: { businessId_dayOfWeek: { businessId: service.businessId, dayOfWeek } },
-    });
-
-    if (!hours) {
-      return res.json({ success: true, date, slots: [], message: 'El negocio no ha configurado sus horarios' });
-    }
-    if (hours.isClosed) {
-      return res.json({ success: true, date, slots: [], message: 'El negocio está cerrado ese día' });
-    }
-
-    // Generar todos los slots posibles dentro del horario
-    const [openH, openM]   = hours.openTime.split(':').map(Number);
-    const [closeH, closeM] = hours.closeTime.split(':').map(Number);
-    const openMinutes  = openH  * 60 + openM;
-    const closeMinutes = closeH * 60 + closeM;
-
-    const allSlots: string[] = [];
-    for (let m = openMinutes; m + duration <= closeMinutes; m += duration) {
-      const h   = Math.floor(m / 60);
-      const min = m % 60;
-      allSlots.push(`${h.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}`);
-    }
-
-    // Reservas existentes en ese día
-    const existingBookings = await prisma.booking.findMany({
-      where: {
-        serviceId,
-        status: { in: ['PENDING', 'CONFIRMED'] },
-        date:   { gte: dayStartUTC, lt: dayEndUTC },
-      },
-      select: { date: true },
-    });
-
-    const now = new Date();
-
-    const available = allSlots.filter(slot => {
-      const [slotH, slotM] = slot.split(':').map(Number);
-      const slotStart = slotH * 60 + slotM;
-      const slotEnd   = slotStart + duration;
-
-      // Descarta slots pasados (dayStartUTC es midnight Lima, +offset da el UTC del slot)
-      const slotUTC = new Date(dayStartUTC.getTime() + (slotH * 60 + slotM) * 60_000);
-      if (slotUTC <= now) return false;
-
-      // Descarta slots que solapan con reservas existentes
-      return !existingBookings.some(b => {
-        const { hour: bH, minute: bM } = toLimaTimeParts(b.date);
-        const bookedStart = bH * 60 + bM;
-        const bookedEnd   = bookedStart + duration;
-        return slotStart < bookedEnd && slotEnd > bookedStart;
-      });
-    });
-
-    res.json({ success: true, date, duration, slots: available });
+    res.json({ success: true, date: result.date, duration: service.duration ?? 60, slots: result.slots, ...(result.reason ? { message: result.reason } : {}) });
 
   } catch (error: any) {
     console.error('Error al obtener slots:', error);
     res.status(500).json({ error: 'Error al obtener slots disponibles' });
+  }
+};
+
+// ============================================
+// 11b. SLOTS DISPONIBLES DE UN RANGO DE DÍAS
+// GET /api/bookings/slots-multi/:serviceId?startDate=YYYY-MM-DD&days=14
+// ============================================
+export const getAvailableSlotsMultipleDays = async (req: Request, res: Response) => {
+  try {
+    const serviceId = req.params.serviceId as string;
+    const { startDate } = req.query as { startDate?: string };
+    const daysRaw = req.query.days as string | undefined;
+
+    if (!startDate || !/^\d{4}-\d{2}-\d{2}$/.test(startDate)) {
+      return res.status(400).json({ error: 'Parámetro startDate requerido (formato: YYYY-MM-DD)' });
+    }
+
+    let days = daysRaw ? parseInt(daysRaw, 10) : 14;
+    if (!Number.isFinite(days) || days < 1) days = 14;
+    if (days > 30) days = 30;
+
+    const service = await prisma.service.findUnique({
+      where:  { id: serviceId },
+      select: { id: true, duration: true, businessId: true, isActive: true, business: { select: { isActive: true } } },
+    });
+
+    if (!service || !service.isActive) return res.status(404).json({ error: 'Servicio no encontrado' });
+    if (!service.business.isActive)    return res.status(400).json({ error: 'El negocio no está disponible' });
+
+    const [year, month, day] = startDate.split('-').map(Number);
+    const data: SlotsForDateResult[] = [];
+
+    for (let i = 0; i < days; i++) {
+      const d = new Date(Date.UTC(year, month - 1, day + i));
+      const dateStr = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+      data.push(await getSlotsForDate(service, dateStr));
+    }
+
+    res.json({ success: true, startDate, days, data });
+
+  } catch (error: any) {
+    console.error('Error al obtener slots multi-día:', error);
+    res.status(500).json({ error: 'Error al obtener slots disponibles' });
+  }
+};
+
+// ============================================
+// 11c. DISPONIBILIDAD DE UN MES COMPLETO (calendario visual)
+// GET /api/bookings/calendar/:businessId?month=YYYY-MM&serviceId=xxx (serviceId opcional)
+// ============================================
+export const getCalendarAvailability = async (req: Request, res: Response) => {
+  try {
+    const businessId = req.params.businessId as string;
+    const { month, serviceId } = req.query as { month?: string; serviceId?: string };
+
+    if (!month || !/^\d{4}-\d{2}$/.test(month)) {
+      return res.status(400).json({ error: 'Parámetro month requerido (formato: YYYY-MM)' });
+    }
+
+    const business = await prisma.business.findUnique({
+      where:  { id: businessId },
+      select: { id: true, isActive: true, orderMode: true },
+    });
+    if (!business || !business.isActive) return res.status(404).json({ error: 'Negocio no encontrado' });
+    if (business.orderMode !== 'APPOINTMENT') {
+      return res.status(400).json({ error: 'Este negocio no acepta reservas por cita' });
+    }
+
+    let service: ServiceForSlots | null = null;
+    if (serviceId) {
+      const svc = await prisma.service.findUnique({
+        where:  { id: serviceId },
+        select: { id: true, duration: true, businessId: true, isActive: true, business: { select: { isActive: true } } },
+      });
+      if (!svc || !svc.isActive) return res.status(404).json({ error: 'Servicio no encontrado' });
+      if (svc.businessId !== businessId) return res.status(400).json({ error: 'El servicio no pertenece a este negocio' });
+      service = svc;
+    }
+
+    const [year, monthNum] = month.split('-').map(Number);
+    const daysInMonth = new Date(Date.UTC(year, monthNum, 0)).getUTCDate();
+
+    // Rango completo del mes en Lima, expresado en UTC
+    const monthStartUTC = new Date(Date.UTC(year, monthNum - 1, 1, 5, 0, 0));
+    const monthEndUTC   = new Date(Date.UTC(year, monthNum, 1, 5, 0, 0));
+
+    const [blocks, allHours] = await Promise.all([
+      prisma.availabilityBlock.findMany({
+        where: { businessId, startDate: { lt: monthEndUTC }, endDate: { gte: monthStartUTC } },
+      }),
+      prisma.businessHours.findMany({ where: { businessId } }),
+    ]);
+    const hoursByDow = new Map(allHours.map(h => [h.dayOfWeek, h]));
+
+    const now = new Date();
+    const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Lima' }).format(now); // YYYY-MM-DD
+
+    const availability: Record<string, boolean> = {};
+
+    for (let day = 1; day <= daysInMonth; day++) {
+      const dateStr = `${year}-${String(monthNum).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+
+      if (dateStr < todayStr) {
+        availability[dateStr] = false;
+        continue;
+      }
+
+      const dayStartUTC = new Date(Date.UTC(year, monthNum - 1, day,     5, 0, 0));
+      const dayEndUTC   = new Date(Date.UTC(year, monthNum - 1, day + 1, 5, 0, 0));
+
+      const isBlocked = blocks.some(b => b.startDate <= dayEndUTC && b.endDate >= dayStartUTC);
+      if (isBlocked) {
+        availability[dateStr] = false;
+        continue;
+      }
+
+      const { dayOfWeek } = toLimaTimeParts(dayStartUTC);
+      const hours = hoursByDow.get(dayOfWeek);
+      if (!hours || hours.isClosed) {
+        availability[dateStr] = false;
+        continue;
+      }
+
+      if (service) {
+        const result = await getSlotsForDate(service, dateStr);
+        availability[dateStr] = result.slots.length > 0;
+      } else {
+        availability[dateStr] = true;
+      }
+    }
+
+    res.json({ success: true, month, year, availability });
+
+  } catch (error: any) {
+    console.error('Error al obtener calendario:', error);
+    res.status(500).json({ error: 'Error al obtener disponibilidad del calendario' });
   }
 };
 

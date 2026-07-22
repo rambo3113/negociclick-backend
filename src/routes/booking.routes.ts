@@ -11,6 +11,8 @@ import {
   getEarnings,
   getAgenda,
   getAvailableSlots,
+  getAvailableSlotsMultipleDays,
+  getCalendarAvailability,
   getBookingTimeline,
 } from '../controllers/booking.controller';
 import { authenticate } from '../middleware/auth.middleware';
@@ -21,6 +23,8 @@ const router = Router();
 
 // Pública — el cliente necesita ver slots antes de autenticarse
 router.get('/slots/:serviceId', getAvailableSlots);
+router.get('/slots-multi/:serviceId', getAvailableSlotsMultipleDays);
+router.get('/calendar/:businessId', getCalendarAvailability);
 
 // Todas las demás requieren autenticación
 router.use(authenticate);
