@@ -1052,11 +1052,14 @@ type PreloadedHours = { isClosed: boolean; openTime: string; closeTime: string }
 // Usada por getAvailableSlots (un día), getAvailableSlotsMultipleDays (rango) y getCalendarAvailability (mes).
 // preloadedBlocks/preloadedHours son opcionales: si el caller ya los cargó para el mes completo
 // (como getCalendarAvailability), evita repetir esas dos queries por cada día.
+type PreloadedBooking = { date: Date };
+
 async function getSlotsForDate(
   service: ServiceForSlots,
   dateStr: string,
   preloadedBlocks?: PreloadedBlock[],
-  preloadedHours?: Map<number, PreloadedHours>
+  preloadedHours?: Map<number, PreloadedHours>,
+  preloadedBookings?: PreloadedBooking[]
 ): Promise<SlotsForDateResult> {
   const duration = service.duration ?? 60;
 
@@ -1107,8 +1110,9 @@ async function getSlotsForDate(
     allSlots.push(`${h.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}`);
   }
 
-  // Reservas existentes en ese día
-  const existingBookings = await prisma.booking.findMany({
+  // Reservas existentes en ese día — si vienen precargadas (caller ya hizo una sola query
+  // para todo el mes), se reutilizan; si no, se consulta individualmente para este día.
+  const existingBookings = preloadedBookings ?? await prisma.booking.findMany({
     where: {
       serviceId: service.id,
       status: { in: ['PENDING', 'CONFIRMED'] },
@@ -1262,6 +1266,27 @@ export const getCalendarAvailability = async (req: Request, res: Response) => {
     ]);
     const hoursByDow = new Map(allHours.map(h => [h.dayOfWeek, h]));
 
+    // Una sola query de bookings para todo el mes (en vez de una por día), agrupada por
+    // fecha calendario Lima — necesario porque un booking de las 20:00 Lima cae en el día
+    // UTC siguiente y agrupar sin timeZone lo perdería.
+    const bookingsByDay = new Map<string, PreloadedBooking[]>();
+    if (service) {
+      const monthBookings = await prisma.booking.findMany({
+        where: {
+          serviceId: service.id,
+          status: { in: ['PENDING', 'CONFIRMED'] },
+          date:   { gte: monthStartUTC, lt: monthEndUTC },
+        },
+        select: { date: true },
+      });
+      const dayFormatter = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Lima' });
+      for (const b of monthBookings) {
+        const dayStr = dayFormatter.format(b.date);
+        if (!bookingsByDay.has(dayStr)) bookingsByDay.set(dayStr, []);
+        bookingsByDay.get(dayStr)!.push(b);
+      }
+    }
+
     const now = new Date();
     const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Lima' }).format(now); // YYYY-MM-DD
 
@@ -1303,7 +1328,9 @@ export const getCalendarAvailability = async (req: Request, res: Response) => {
 
     if (service && daysNeedingSlots.length > 0) {
       const results = await Promise.all(
-        daysNeedingSlots.map(dateStr => getSlotsForDate(service as ServiceForSlots, dateStr, blocks, hoursByDow))
+        daysNeedingSlots.map(dateStr =>
+          getSlotsForDate(service as ServiceForSlots, dateStr, blocks, hoursByDow, bookingsByDay.get(dateStr) ?? [])
+        )
       );
       results.forEach(result => {
         availability[result.date] = result.slots.length > 0;
