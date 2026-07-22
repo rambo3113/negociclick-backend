@@ -1045,9 +1045,19 @@ type SlotsForDateResult = {
   reason?: string;
 };
 
+type PreloadedBlock = { startDate: Date; endDate: Date; reason?: string | null };
+type PreloadedHours = { isClosed: boolean; openTime: string; closeTime: string };
+
 // Lógica compartida: calcula los slots disponibles de un servicio para un día dado.
 // Usada por getAvailableSlots (un día), getAvailableSlotsMultipleDays (rango) y getCalendarAvailability (mes).
-async function getSlotsForDate(service: ServiceForSlots, dateStr: string): Promise<SlotsForDateResult> {
+// preloadedBlocks/preloadedHours son opcionales: si el caller ya los cargó para el mes completo
+// (como getCalendarAvailability), evita repetir esas dos queries por cada día.
+async function getSlotsForDate(
+  service: ServiceForSlots,
+  dateStr: string,
+  preloadedBlocks?: PreloadedBlock[],
+  preloadedHours?: Map<number, PreloadedHours>
+): Promise<SlotsForDateResult> {
   const duration = service.duration ?? 60;
 
   // Midnight Lima en UTC: Lima = UTC-5, así que 00:00 Lima = 05:00 UTC
@@ -1057,21 +1067,25 @@ async function getSlotsForDate(service: ServiceForSlots, dateStr: string): Promi
 
   const { dayOfWeek } = toLimaTimeParts(dayStartUTC);
 
-  const blocked = await prisma.availabilityBlock.findFirst({
-    where: {
-      businessId: service.businessId,
-      startDate: { lte: dayEndUTC },
-      endDate:   { gte: dayStartUTC },
-    },
-  });
+  const blocked = preloadedBlocks
+    ? preloadedBlocks.find(b => b.startDate <= dayEndUTC && b.endDate >= dayStartUTC) ?? null
+    : await prisma.availabilityBlock.findFirst({
+        where: {
+          businessId: service.businessId,
+          startDate: { lte: dayEndUTC },
+          endDate:   { gte: dayStartUTC },
+        },
+      });
   if (blocked) {
     const reason = blocked.reason ? `El negocio no está disponible ese día: ${blocked.reason}` : 'El negocio no está disponible ese día';
     return { date: dateStr, slots: [], available: false, reason };
   }
 
-  const hours = await prisma.businessHours.findUnique({
-    where: { businessId_dayOfWeek: { businessId: service.businessId, dayOfWeek } },
-  });
+  const hours = preloadedHours
+    ? preloadedHours.get(dayOfWeek) ?? null
+    : await prisma.businessHours.findUnique({
+        where: { businessId_dayOfWeek: { businessId: service.businessId, dayOfWeek } },
+      });
 
   if (!hours) {
     return { date: dateStr, slots: [], available: false, reason: 'El negocio no ha configurado sus horarios' };
@@ -1289,7 +1303,7 @@ export const getCalendarAvailability = async (req: Request, res: Response) => {
 
     if (service && daysNeedingSlots.length > 0) {
       const results = await Promise.all(
-        daysNeedingSlots.map(dateStr => getSlotsForDate(service as ServiceForSlots, dateStr))
+        daysNeedingSlots.map(dateStr => getSlotsForDate(service as ServiceForSlots, dateStr, blocks, hoursByDow))
       );
       results.forEach(result => {
         availability[result.date] = result.slots.length > 0;
