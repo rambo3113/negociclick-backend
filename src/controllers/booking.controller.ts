@@ -1252,6 +1252,9 @@ export const getCalendarAvailability = async (req: Request, res: Response) => {
     const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Lima' }).format(now); // YYYY-MM-DD
 
     const availability: Record<string, boolean> = {};
+    // Días que pasan los filtros en memoria (bloqueos/horarios ya precargados) y necesitan
+    // consultar slots reales — se resuelven en paralelo en vez de un await por día.
+    const daysNeedingSlots: string[] = [];
 
     for (let day = 1; day <= daysInMonth; day++) {
       const dateStr = `${year}-${String(monthNum).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
@@ -1278,11 +1281,19 @@ export const getCalendarAvailability = async (req: Request, res: Response) => {
       }
 
       if (service) {
-        const result = await getSlotsForDate(service, dateStr);
-        availability[dateStr] = result.slots.length > 0;
+        daysNeedingSlots.push(dateStr);
       } else {
         availability[dateStr] = true;
       }
+    }
+
+    if (service && daysNeedingSlots.length > 0) {
+      const results = await Promise.all(
+        daysNeedingSlots.map(dateStr => getSlotsForDate(service as ServiceForSlots, dateStr))
+      );
+      results.forEach(result => {
+        availability[result.date] = result.slots.length > 0;
+      });
     }
 
     res.json({ success: true, month, year, availability });
