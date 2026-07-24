@@ -125,6 +125,7 @@ model Business {
   availabilityBlocks  AvailabilityBlock[]
   featuredPayments    FeaturedPayment[]
   reports             Report[]
+  professionals       Professional[]
   deliveryConfig      DeliveryConfig?
 
   @@index([ownerId])
@@ -301,6 +302,8 @@ model Booking {
   review     Review?
   timeline   BookingTimeline[]
   reminderLogs ReminderLog[]
+  professionalId String?
+  professional   Professional? @relation(fields: [professionalId], references: [id], onDelete: SetNull)
 
   @@index([clientId])
   @@index([businessId])
@@ -309,7 +312,48 @@ model Booking {
   @@index([businessId, date])          // disponibilidad y conflictos de horario
   @@index([businessId, date, status])  // conflicto: status IN [PENDING,CONFIRMED] + fecha
   @@index([clientId, status])          // historial de reservas del cliente por estado
+  @@index([professionalId])
   @@map("bookings")
+}
+
+model Professional {
+  id          String   @id @default(cuid())
+  businessId  String
+  business    Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  name        String
+  email       String?
+  phone       String?
+  photo       String?
+  specialties Json     @default("[]") // ["corte","barba","facial"]
+  bio         String?
+
+  averageRating Float?
+  reviewCount   Int    @default(0)
+
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  schedules   ProfessionalSchedule[]
+  bookings    Booking[]
+
+  @@index([businessId])
+  @@map("professionals")
+}
+
+model ProfessionalSchedule {
+  id             String       @id @default(cuid())
+  professionalId String
+  professional   Professional @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+
+  dayOfWeek Int     // 0=domingo … 6=sábado
+  startTime String  // "09:00"
+  endTime   String  // "18:00"
+  isClosed  Boolean @default(false)
+
+  @@unique([professionalId, dayOfWeek])
+  @@map("professional_schedules")
 }
 
 model BookingTimeline {

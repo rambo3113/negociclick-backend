@@ -24,6 +24,7 @@ import { startExpireManualTrials } from './jobs/expireManualTrials';
 import reclamoRoutes from './routes/reclamo.routes';
 import chatRoutes from './routes/chat.routes';
 import featuredRoutes from './routes/featured.routes';
+import professionalRoutes from './routes/professional.routes';
 import {
   loginLimiter,
   loginIpLimiter,
@@ -176,6 +177,7 @@ app.use('/api/businesses/:id/subcategories', subcategoryRoutes);
 app.use('/api/businesses', businessRoutes);
 app.use('/api/services', serviceRoutes);
 app.use('/api/bookings', bookingRoutes);
+app.use('/api/professionals', professionalRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/subscriptions', subscriptionRoutes);
 app.use('/api/payments', paymentRoutes);
