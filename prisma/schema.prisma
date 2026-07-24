@@ -102,6 +102,10 @@ model Business {
   viewCount    Int      @default(0)
   featuredReminderSentAt DateTime? // fecha en que se envió el aviso de 3 días; null = no enviado aún
   remindersEnabled Boolean @default(true) // recordatorio de cita 24h antes (email)
+  amenities    Json     @default("[]")  // ["wifi","mascotas","estacionamiento","accesible"]
+  specialties  Json     @default("[]")  // ["corte","barba","tintura"]
+  onlyMen      Boolean  @default(false)
+  onlyWomen    Boolean  @default(false)
   // Cobros directos por negocio (PREMIUM)
   paymentInstructions  String?   // texto libre: Yape, transferencia, contra entrega…
   culqiPublicKey       String?   // pk_live_* o pk_test_*
@@ -241,6 +245,8 @@ model Service {
   price       Decimal  @db.Decimal(10, 2)
   duration    Int?
   category    String
+  badge       String?  // highlight opcional: "destacado" | "promocion" | "experiencia" — no reemplaza `category`
+  badgeOrder  Int      @default(0)
   photo       String?
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())

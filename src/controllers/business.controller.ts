@@ -434,6 +434,60 @@ export const getReminderHistory = async (req: Request, res: Response) => {
 };
 
 // ============================================
+// 4d. AMENITIES / ESPECIALIDADES / RESTRICCIÓN DE GÉNERO
+// PUT /api/businesses/:id/info
+// ============================================
+const AMENITY_OPTIONS = ['wifi', 'mascotas', 'estacionamiento', 'accesible', 'a_c'];
+const SPECIALTY_OPTIONS = ['corte', 'barba', 'tintura', 'tratamientos', 'pedicura', 'manicura'];
+
+export const updateBusinessInfo = async (req: Request, res: Response) => {
+  try {
+    const id = req.params.id as string;
+    const userId = (req as any).userId as string;
+    const { amenities, specialties, onlyMen, onlyWomen } = req.body as {
+      amenities?: string[];
+      specialties?: string[];
+      onlyMen?: boolean;
+      onlyWomen?: boolean;
+    };
+
+    const business = await prisma.business.findUnique({ where: { id } });
+    if (!business) return res.status(404).json({ error: 'Negocio no encontrado' });
+    if (business.ownerId !== userId) return res.status(403).json({ error: 'No tienes permiso' });
+
+    if (amenities !== undefined) {
+      if (!Array.isArray(amenities) || amenities.some(a => !AMENITY_OPTIONS.includes(a))) {
+        return res.status(400).json({ error: `amenities debe ser un array con valores de: ${AMENITY_OPTIONS.join(', ')}` });
+      }
+    }
+    if (specialties !== undefined) {
+      if (!Array.isArray(specialties) || specialties.some(s => !SPECIALTY_OPTIONS.includes(s))) {
+        return res.status(400).json({ error: `specialties debe ser un array con valores de: ${SPECIALTY_OPTIONS.join(', ')}` });
+      }
+    }
+    if (onlyMen && onlyWomen) {
+      return res.status(400).json({ error: 'No puede ser "solo hombres" y "solo mujeres" a la vez' });
+    }
+
+    const updated = await prisma.business.update({
+      where: { id },
+      data: {
+        ...(amenities !== undefined ? { amenities } : {}),
+        ...(specialties !== undefined ? { specialties } : {}),
+        ...(onlyMen !== undefined ? { onlyMen } : {}),
+        ...(onlyWomen !== undefined ? { onlyWomen } : {}),
+      },
+    });
+
+    invalidateBusiness(id);
+    res.json({ success: true, business: omitCulqiSecret(updated as any) });
+  } catch (error: any) {
+    console.error('Error al actualizar información del negocio:', error);
+    res.status(500).json({ error: 'Error al actualizar información del negocio' });
+  }
+};
+
+// ============================================
 // 5b. SUBIR HERO BANNER
 // ============================================
 export const uploadHeroBanner = async (req: Request, res: Response) => {

@@ -200,7 +200,7 @@ export const updateService = async (req: Request, res: Response) => {
   try {
     const id = req.params.id as string;
     const userId = (req as any).userId;
-    const { name, description, price, duration, category, isActive, subcategoryId } = req.body as {
+    const { name, description, price, duration, category, isActive, subcategoryId, badge, badgeOrder } = req.body as {
       name?: string;
       description?: string;
       price?: number;
@@ -208,7 +208,13 @@ export const updateService = async (req: Request, res: Response) => {
       category?: string;
       isActive?: boolean;
       subcategoryId?: string | null;
+      badge?: string | null; // "destacado" | "promocion" | "experiencia" | null
+      badgeOrder?: number;
     };
+
+    if (badge !== undefined && badge !== null && !['destacado', 'promocion', 'experiencia'].includes(badge)) {
+      return res.status(400).json({ error: 'badge debe ser "destacado", "promocion", "experiencia" o null' });
+    }
 
     const service = await prisma.service.findUnique({
       where: { id },
@@ -248,6 +254,8 @@ export const updateService = async (req: Request, res: Response) => {
         category: category || undefined,
         isActive: isActive !== undefined ? isActive : undefined,
         ...(subcategoryId !== undefined ? { subcategoryId: subcategoryId || null } : {}),
+        ...(badge !== undefined ? { badge: badge || null } : {}),
+        ...(badgeOrder !== undefined ? { badgeOrder: parseInt(String(badgeOrder)) || 0 } : {}),
       }
     });
 
