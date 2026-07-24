@@ -14,6 +14,7 @@ import {
   getAvailableSlotsMultipleDays,
   getCalendarAvailability,
   getBookingTimeline,
+  sendBookingReminder,
 } from '../controllers/booking.controller';
 import { authenticate } from '../middleware/auth.middleware';
 import { validate } from '../middleware/validate.middleware';
@@ -39,6 +40,7 @@ router.get('/:id/timeline', getBookingTimeline);
 router.put('/:id/status', updateBookingStatus);
 router.put('/:id/reschedule', rescheduleBooking);
 router.post('/:id/mark-paid', markAsPaid);
+router.post('/:id/send-reminder', sendBookingReminder);
 router.delete('/:id', cancelBooking);
 
 export default router;

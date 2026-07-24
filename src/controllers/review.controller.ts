@@ -304,6 +304,44 @@ export const updateReview = async (req: Request, res: Response) => {
 };
 
 // ============================================
+// 4b. RESPONDER RESEÑA (dueño del negocio)
+// POST /api/reviews/:id/reply
+// ============================================
+export const replyToReview = async (req: Request, res: Response) => {
+  try {
+    const reviewId = req.params.id as string;
+    const vendorId = (req as any).userId as string;
+    const { reply } = req.body as { reply?: string };
+
+    if (!reply || !reply.trim() || reply.trim().length > 500) {
+      return res.status(400).json({ error: 'La respuesta debe tener entre 1 y 500 caracteres' });
+    }
+
+    const review = await prisma.review.findUnique({
+      where: { id: reviewId },
+      include: { business: { select: { ownerId: true } } },
+    });
+    if (!review) return res.status(404).json({ error: 'Reseña no encontrada' });
+    if (review.business.ownerId !== vendorId) {
+      return res.status(403).json({ error: 'No tienes permiso para responder esta reseña' });
+    }
+
+    const updated = await prisma.review.update({
+      where: { id: reviewId },
+      data: { vendorReply: reply.trim(), vendorRepliedAt: new Date() },
+      include: { client: { select: { name: true, avatar: true } } },
+    });
+
+    invalidateReviews(review.businessId);
+
+    res.json({ success: true, review: updated });
+  } catch (error: any) {
+    console.error('Error al responder reseña:', error);
+    res.status(500).json({ error: 'Error al responder reseña' });
+  }
+};
+
+// ============================================
 // 5. ELIMINAR RESEÑA (autor o admin)
 // ============================================
 export const deleteReview = async (req: Request, res: Response) => {

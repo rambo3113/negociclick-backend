@@ -4,7 +4,8 @@ import {
   getReviewsByBusiness,
   getMyReviews,
   updateReview,
-  deleteReview
+  deleteReview,
+  replyToReview
 } from '../controllers/review.controller';
 import { authenticate } from '../middleware/auth.middleware';
 
@@ -18,6 +19,7 @@ router.use(authenticate);
 router.post('/', createReview);
 router.get('/my', getMyReviews);
 router.put('/:id', updateReview);
+router.post('/:id/reply', replyToReview);
 router.delete('/:id', deleteReview);
 
 export default router;

@@ -373,6 +373,67 @@ export const updateBusinessProfile = async (req: Request, res: Response) => {
 };
 
 // ============================================
+// 4b. TOGGLE DE RECORDATORIOS AUTOMÁTICOS
+// PUT /api/businesses/:id/reminders
+// ============================================
+export const updateRemindersEnabled = async (req: Request, res: Response) => {
+  try {
+    const id = req.params.id as string;
+    const userId = (req as any).userId as string;
+    const { remindersEnabled } = req.body as { remindersEnabled?: boolean };
+
+    if (typeof remindersEnabled !== 'boolean') {
+      return res.status(400).json({ error: 'remindersEnabled debe ser booleano' });
+    }
+
+    const business = await prisma.business.findUnique({ where: { id } });
+    if (!business) return res.status(404).json({ error: 'Negocio no encontrado' });
+    if (business.ownerId !== userId) return res.status(403).json({ error: 'No tienes permiso' });
+
+    const updated = await prisma.business.update({
+      where: { id },
+      data: { remindersEnabled },
+      select: { remindersEnabled: true },
+    });
+
+    invalidateBusiness(id);
+    res.json({ success: true, remindersEnabled: updated.remindersEnabled });
+  } catch (error: any) {
+    console.error('Error al actualizar recordatorios:', error);
+    res.status(500).json({ error: 'Error al actualizar recordatorios' });
+  }
+};
+
+// ============================================
+// 4c. HISTORIAL DE RECORDATORIOS ENVIADOS
+// GET /api/businesses/:id/reminders/history
+// ============================================
+export const getReminderHistory = async (req: Request, res: Response) => {
+  try {
+    const id = req.params.id as string;
+    const userId = (req as any).userId as string;
+
+    const business = await prisma.business.findUnique({ where: { id }, select: { ownerId: true } });
+    if (!business) return res.status(404).json({ error: 'Negocio no encontrado' });
+    if (business.ownerId !== userId) return res.status(403).json({ error: 'No tienes permiso' });
+
+    const reminders = await prisma.reminderLog.findMany({
+      where: { booking: { businessId: id } },
+      include: {
+        booking: { select: { id: true, date: true, client: { select: { name: true, email: true } } } },
+      },
+      orderBy: { sentAt: 'desc' },
+      take: 20,
+    });
+
+    res.json({ success: true, reminders });
+  } catch (error: any) {
+    console.error('Error al obtener historial de recordatorios:', error);
+    res.status(500).json({ error: 'Error al obtener historial de recordatorios' });
+  }
+};
+
+// ============================================
 // 5b. SUBIR HERO BANNER
 // ============================================
 export const uploadHeroBanner = async (req: Request, res: Response) => {

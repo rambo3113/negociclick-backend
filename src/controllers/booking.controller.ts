@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { Prisma } from '@prisma/client';
 import prisma from '../lib/prisma';
-import { sendBookingCreatedToVendor, sendBookingCancelledToClient, sendBookingCancelledToVendor, sendPaymentReceivedToVendor, sendReviewReminderToClient, sendBookingRescheduledToVendor, sendOrderStatusUpdateToClient, sendBookingCreatedToClient } from '../lib/email';
+import { sendBookingCreatedToVendor, sendBookingCancelledToClient, sendBookingCancelledToVendor, sendPaymentReceivedToVendor, sendReviewReminderToClient, sendBookingRescheduledToVendor, sendOrderStatusUpdateToClient, sendBookingCreatedToClient, sendAppointmentReminder } from '../lib/email';
 
 async function addTimeline(bookingId: string, event: string, description?: string, actor?: string) {
   try {
@@ -1376,5 +1376,52 @@ export const getBookingTimeline = async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error('Error al obtener timeline:', error);
     res.status(500).json({ error: 'Error al obtener timeline' });
+  }
+};
+
+// ============================================
+// 13. ENVIAR RECORDATORIO MANUAL (dueño del negocio)
+// POST /api/bookings/:id/send-reminder
+// ============================================
+export const sendBookingReminder = async (req: Request, res: Response) => {
+  try {
+    const bookingId = req.params.id as string;
+    const vendorId  = (req as any).userId as string;
+
+    const booking = await prisma.booking.findUnique({
+      where: { id: bookingId },
+      include: {
+        client:   { select: { name: true, email: true } },
+        service:  { select: { name: true } },
+        business: { select: { name: true, phone: true, ownerId: true } },
+      },
+    });
+
+    if (!booking) return res.status(404).json({ error: 'Reserva no encontrada' });
+    if (booking.business.ownerId !== vendorId) return res.status(403).json({ error: 'No tienes permiso' });
+    if (!['PENDING', 'CONFIRMED'].includes(booking.status)) {
+      return res.status(400).json({ error: 'Solo se puede recordar una reserva pendiente o confirmada' });
+    }
+
+    try {
+      await sendAppointmentReminder({
+        clientEmail:   booking.client.email,
+        clientName:    booking.client.name,
+        serviceName:   booking.service.name,
+        businessName:  booking.business.name,
+        businessPhone: booking.business.phone,
+        date:          booking.date,
+      });
+      await prisma.reminderLog.create({ data: { bookingId, status: 'sent' } });
+      res.json({ success: true, message: 'Recordatorio enviado' });
+    } catch (err: any) {
+      await prisma.reminderLog.create({
+        data: { bookingId, status: 'failed', errorMsg: String(err) },
+      }).catch(() => {});
+      res.status(500).json({ error: 'No se pudo enviar el recordatorio' });
+    }
+  } catch (error: any) {
+    console.error('Error al enviar recordatorio:', error);
+    res.status(500).json({ error: 'Error al enviar recordatorio' });
   }
 };

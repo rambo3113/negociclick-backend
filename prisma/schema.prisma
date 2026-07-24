@@ -101,6 +101,7 @@ model Business {
   totalReviews Int?     @default(0)
   viewCount    Int      @default(0)
   featuredReminderSentAt DateTime? // fecha en que se envió el aviso de 3 días; null = no enviado aún
+  remindersEnabled Boolean @default(true) // recordatorio de cita 24h antes (email)
   // Cobros directos por negocio (PREMIUM)
   paymentInstructions  String?   // texto libre: Yape, transferencia, contra entrega…
   culqiPublicKey       String?   // pk_live_* o pk_test_*
@@ -293,6 +294,7 @@ model Booking {
   payment    Payment?
   review     Review?
   timeline   BookingTimeline[]
+  reminderLogs ReminderLog[]
 
   @@index([clientId])
   @@index([businessId])
@@ -317,6 +319,21 @@ model BookingTimeline {
   @@index([bookingId])
   @@index([bookingId, timestamp])
   @@map("booking_timeline")
+}
+
+model ReminderLog {
+  id          String   @id @default(cuid())
+  channel     String   @default("email") // 'email' (único canal soportado hoy)
+  status      String   // 'sent' | 'failed'
+  errorMsg    String?
+  sentAt      DateTime @default(now())
+
+  bookingId String
+  booking   Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@index([bookingId])
+  @@index([sentAt])
+  @@map("reminder_logs")
 }
 
 model Payment {
@@ -422,6 +439,8 @@ model Review {
   rating    Int
   comment   String?
   createdAt DateTime @default(now())
+  vendorReply     String?
+  vendorRepliedAt DateTime?
 
   clientId   String
   client     User     @relation(fields: [clientId], references: [id])

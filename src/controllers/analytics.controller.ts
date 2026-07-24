@@ -50,7 +50,7 @@ export const getAnalytics = async (req: Request, res: Response) => {
         where: { businessId },
         orderBy: { createdAt: 'desc' },
         take: 5,
-        select: { rating: true, comment: true, createdAt: true, client: { select: { name: true } } },
+        select: { id: true, rating: true, comment: true, createdAt: true, vendorReply: true, vendorRepliedAt: true, client: { select: { name: true } } },
       }),
       prisma.booking.groupBy({
         by: ['serviceId'],

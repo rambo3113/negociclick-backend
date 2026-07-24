@@ -12,6 +12,8 @@ import {
   uploadHeroBanner,
   getDeliveryMethods,
   updateDeliveryMethods,
+  updateRemindersEnabled,
+  getReminderHistory,
 } from '../controllers/business.controller';
 import { getReviewsByBusiness, createBusinessReview } from '../controllers/review.controller';
 import {
@@ -45,6 +47,8 @@ router.post('/:id/cover', authenticate, upload.single('cover'), uploadCoverImage
 router.post('/:id/hero', authenticate, upload.single('hero'), uploadHeroBanner);
 router.get('/:id/reviews', getReviewsByBusiness);
 router.post('/:id/reviews', authenticate, createBusinessReview);
+router.put('/:id/reminders', authenticate, updateRemindersEnabled);
+router.get('/:id/reminders/history', authenticate, getReminderHistory);
 router.delete('/:id', authenticate, deleteBusiness);
 
 // Cobros por negocio
